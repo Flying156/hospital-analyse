@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>兑换码管理</title>
+    {% include 'system/common/header.html' %}
+</head>
+<body class="pear-container">
+
+{# 查询表单 #}
+<div class="layui-card">
+    <div class="layui-card-body">
+        <form class="layui-form" action="" lay-filter="query-form">
+            <div class="layui-form-item" style="margin-bottom: unset;">
+                <label class="layui-form-label">激活码</label>
+                <div class="layui-input-inline">
+                    <input type="text" name="key" placeholder="" class="layui-input">
+                </div>
+                <button class="layui-btn layui-btn-md" lay-submit lay-filter="gift-query">
+                    <i class="layui-icon layui-icon-search"></i>
+                    查询
+                </button>
+                <button type="reset" class="layui-btn layui-btn-primary layui-btn-md">
+                    <i class="layui-icon layui-icon-refresh"></i>
+                    重置
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{# 用户表格 #}
+<div>
+    <div class="layui-card">
+        <div class="layui-card-body">
+            <table id="gift-table" lay-filter="gift-table"></table>
+        </div>
+    </div>
+</div>
+</body>
+
+<!-- 这里写的都是表格一行元素组件 -->
+{% raw %}
+    <script type="text/html" id="enable-element">
+        <input type="checkbox" name="enable" value="{{ d.id }}" lay-skin="switch" lay-text="启用|禁用"
+               lay-filter="gift-enable"
+               {{# if(d.enable==1){ }} checked {{# } }}/>
+    </script>
+
+    <script type="text/html" id="used-element">
+        {{# if(d.used==1){ }}
+        <span style="color: red">已用</span>
+        {{# } else { }}
+        <span style="color: green">未用</span>
+        {{# } }}
+    </script>
+
+    <script type="text/html" id="createTime-element">
+        {{layui.util.toDateString(d.create_at,  "yyyy-MM-dd HH:mm:ss")}}
+    </script>
+{% endraw %}
+
+
+<script type="text/html" id="table-bar">
+    {% if authorize("system:gift:edit") %}
+        <button class="layui-btn layui-btn-xs" lay-event="edit"><i class="pear-icon pear-icon-edit"> 编辑</i>
+        </button>
+    {% endif %}
+    {% if authorize("system:gift:remove") %}
+        <button class="layui-btn layui-btn-danger layui-btn-xs" lay-event="remove"><i
+                class="pear-icon pear-icon-ashbin"> 删除</i>
+        </button>
+    {% endif %}
+</script>
+
+<!-- 这里是表格的工具栏 -->
+<script type="text/html" id="table-toolbar">
+    {% if authorize("system:gift:add") %}
+        <button class="layui-btn layui-btn-primary layui-btn-sm" lay-event="add">
+            <i class="pear-icon pear-icon-add"></i>
+            新增
+        </button>
+    {% endif %}
+</script>
+
+
+{% include 'system/common/footer.html' %}
+<script>
+    layui.use(['table', 'form', 'popup'], function () {
+        let $ = layui.jquery;
+        let table = layui.table;
+        let form = layui.form;
+        let popup = layui.popup;
+
+        // 表格数据
+        let cols = [
+            [
+                {title: '编号', field: 'id', align: 'center'},
+                {title: '激活码', field: 'key', align: 'center'},
+                {title: '内容', field: 'content', align: 'center'},
+                {title: '启用', field: 'enable', align: 'center', templet: '#enable-element'},
+                {title: '已用', field: 'used', align: 'center', templet: '#used-element'},
+                {title: '创建时间', field: 'create_at', templet: '#createTime-element', align: 'center'},
+                {title: '操作', toolbar: '#table-bar', align: 'center', width: 180}
+            ]
+        ]
+
+        // 渲染表格数据
+        table.render({
+            elem: '#gift-table',
+            url: '/system/gift/data',  // 请求链接
+            page: true,
+            cols: cols,
+            skin: 'line',
+            toolbar: '#table-toolbar',
+            text: {none: '暂无激活码信息'},
+            defaultToolbar: [{layEvent: 'refresh', icon: 'layui-icon-refresh'}, 'filter', 'print', 'exports']
+        })
+
+
+        // 表单查询
+        form.on('submit(gift-query)', function (data) {
+            table.reload('gift-table', {where: data.field});
+            return false;
+        })
+
+        // 启用与禁用
+        form.on('switch(gift-enable)', function (obj) {
+            let operate;
+            if (obj.elem.checked) {
+                operate = 'enable'
+            } else {
+                operate = 'disable'
+            }
+            let loading = layer.load()
+            $.ajax({
+                url: '/system/gift/' + operate,
+                data: JSON.stringify({id: this.value}),
+                dataType: 'json',
+                contentType: 'application/json',
+                type: 'put',
+                success: function (result) {
+                    layer.close(loading)
+                    if (result.success) {
+                        popup.success(result.msg)
+                    } else {
+                        popup.failure(result.msg)
+                    }
+                }
+            })
+        })
+
+        // 表格各行工具事件
+        table.on('tool(gift-table)', function (obj) {
+            if (obj.event === 'remove') {
+
+                layer.confirm('确定要删除该兑换码？', {icon: 3, title: '提示'}, function (index) {
+                    layer.close(index)
+                    let loading = layer.load()
+                    $.ajax({
+                        url: '/system/gift/remove/' + obj.data['id'],
+                        dataType: 'json',
+                        type: 'delete',
+                        success: function (result) {
+                            layer.close(loading)
+                            if (result.success) {
+                                popup.success(result.msg, function () {
+                                    obj.del()
+                                })
+                            } else {
+                                popup.failure(result.msg)
+                            }
+                        }
+                    })
+                })
+
+            } else if (obj.event === 'edit') {
+
+                layer.open({
+                    type: 2,
+                    title: '修改',
+                    shade: 0.1,
+                    area: ['550px', '500px'],
+                    content: '/system/gift/edit/' + obj.data['id']
+                })
+
+            }
+        })
+
+        // 顶部工具栏
+        table.on('toolbar(gift-table)', function (obj) {
+            if (obj.event === 'add') {
+                layer.open({
+                    type: 2,
+                    title: '新增',
+                    shade: 0.1,
+                    area: ['550px', '550px'],
+                    content: '/system/gift/add'
+                })
+            }
+        })
+
+    })
+</script>
+
+</html>
