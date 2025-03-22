@@ -2,8 +2,10 @@ from flask import Blueprint, session, redirect, url_for, render_template, reques
 from flask_login import current_user, login_user, login_required, logout_user
 
 from applications.common.admin import get_captcha, login_log
+from werkzeug.security import generate_password_hash
+from applications.extensions import db
 from applications.common.utils.http import fail_api, success_api
-from applications.models import User
+from applications.models import User, Role
 
 bp = Blueprint('passport', __name__, url_prefix='/passport')
 
@@ -77,6 +79,42 @@ def login_post():
 
     login_log(request, uid=user.id, is_access=False)
     return fail_api(msg="用户名或密码错误")
+
+@bp.get('/register')
+def register():
+    return render_template('system/register.html')
+
+@bp.post('/register')
+def register_post():
+    req = request.form
+    username = req.get('username')
+    password = req.get('password')
+    code = req.get('captcha').__str__().lower()
+    if not username or not password or not code:
+        return fail_api(msg="用户名或密码没有输入")
+    s_code = session.get("code", None)
+    session["code"] = None
+    if not all([code, s_code]):
+        return fail_api(msg="参数错误")
+
+    if code != s_code:
+        return fail_api(msg="验证码错误")
+    user = User.query.filter_by(username=username).first()
+    if user:
+        return fail_api(msg="用户名已经存在")
+
+    new_user = User(username=username, enable=1)
+    new_user.set_password(password)
+    try:
+        role = Role.query.get(2)
+        new_user.role.append(role)
+        db.session.add(new_user)
+        db.session.commit()
+        login_log(request, uid=user.id, is_access=True)
+        return success_api(msg="用户注册成功")
+    except Exception as e:
+        db.session.rollback()
+        return fail_api(msg="注册失败")
 
 
 # 退出登录

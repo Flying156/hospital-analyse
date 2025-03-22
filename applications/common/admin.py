@@ -76,6 +76,24 @@ def login_log(request, uid, is_access):
     desc = str_escape(request.form.get('username'))
     return normal_log(method, url, ip, user_agent, desc, uid, is_access)
 
+def register_log(request, uid, is_access):
+    """
+    记录用户注册日志。
+
+    :param request: Flask 请求对象。
+    :param uid: 用户 ID。
+    :param is_access: 是否成功登录（True 或 False）。
+    :return: 返回日志记录的 ID。
+    """
+    method = request.method
+    url = request.path
+    ip = request.remote_addr
+    user_agent = str_escape(request.headers.get('User-Agent'))
+    desc = str_escape(request.form.get('username'))
+    return normal_log(method, url, ip, user_agent, desc, uid, is_access)
+
+
+
 
 def admin_log(request, is_access, desc=None):
     """
