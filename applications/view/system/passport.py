@@ -2,7 +2,6 @@ from flask import Blueprint, session, redirect, url_for, render_template, reques
 from flask_login import current_user, login_user, login_required, logout_user
 
 from applications.common.admin import get_captcha, login_log
-from werkzeug.security import generate_password_hash
 from applications.extensions import db
 from applications.common.utils.http import fail_api, success_api
 from applications.models import User, Role
