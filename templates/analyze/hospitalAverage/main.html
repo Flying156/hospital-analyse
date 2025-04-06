@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>医院等级与人口分析</title>
+    <meta name="renderer" content="webkit">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <link rel="stylesheet" href="{{ url_for('static', filename='system/admin/css/other/analysis.css') }}"/>
+    <!-- 引入 jQuery -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <!-- 引入 ECharts -->
+    <script src="{{ url_for('static', filename='index/js/echarts.min.js') }}"></script>
+</head>
+
+<body>
+    <div class="pear-container">
+        <div class="layui-row layui-col-space10">
+            <div class="layui-col-md12">
+                <div class="layui-card">
+                    <div class="layui-card-header">医院等级与人口数量分析</div>
+                    <div class="layui-card-body">
+                        <div class="layui-row">
+                            <div class="layui-col layui-col-md12">
+                                <div id="hospital-chart" style="height:600px;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        // 等待页面加载完成
+        window.onload = function() {
+            console.log('页面加载完成');
+
+            // 初始化图表
+            var hospitalChart = echarts.init(document.getElementById('hospital-chart'));
+
+            // 从后端获取数据
+            $.ajax({
+                url: '/system/hospitalAverage/data',
+                type: 'GET',
+                dataType: 'json',
+                success: function(res) {
+                    if(res.code === 0) {
+                        var option = {
+                            title: {
+                                text: '医院等级与人口数量分析',
+                                left: 'center'
+                            },
+                            tooltip: {
+                                trigger: 'axis',
+                                axisPointer: {
+                                    type: 'shadow'
+                                },
+                                formatter: function(params) {
+                                    var result = params[0].name + '<br/>';
+                                    var total = res.data.total_data[params[0].dataIndex];
+                                    params.forEach(function(item) {
+                                        if (item.seriesName !== '人口数量') {
+                                            result += item.seriesName + ': ' + item.value + '家<br/>';
+                                        }
+                                    });
+                                    result += '总医院数: ' + total + '家<br/>';
+                                    result += '人口数量: ' + res.data.population[params[0].dataIndex] + '人';
+                                    return result;
+                                }
+                            },
+                            legend: {
+                                data: ['三级医院', '二级医院', '一级医院'],
+                                top: 30
+                            },
+                            grid: {
+                                left: '3%',
+                                right: '4%',
+                                bottom: '3%',
+                                containLabel: true
+                            },
+                            xAxis: {
+                                type: 'category',
+                                data: res.data.cities,
+                                axisLabel: {
+                                    interval: 0,
+                                    rotate: 45,
+                                    formatter: function(value) {
+                                        return value.length > 4 ? value.substring(0, 4) + '...' : value;
+                                    }
+                                }
+                            },
+                            yAxis: [
+                                {
+                                    type: 'value',
+                                    name: '医院数量',
+                                    position: 'left'
+                                },
+                                {
+                                    type: 'value',
+                                    name: '人口数量',
+                                    position: 'right',
+                                    axisLabel: {
+                                        formatter: function(value) {
+                                            return (value / 10000).toFixed(0) + '万';
+                                        }
+                                    }
+                                }
+                            ],
+                            series: [
+                                {
+                                    name: '三级医院',
+                                    type: 'bar',
+                                    stack: 'total',
+                                    emphasis: {
+                                        focus: 'series'
+                                    },
+                                    data: res.data.level3_data,
+                                    itemStyle: {
+                                        color: '#c23531'
+                                    }
+                                },
+                                {
+                                    name: '二级医院',
+                                    type: 'bar',
+                                    stack: 'total',
+                                    emphasis: {
+                                        focus: 'series'
+                                    },
+                                    data: res.data.level2_data,
+                                    itemStyle: {
+                                        color: '#2f4554'
+                                    }
+                                },
+                                {
+                                    name: '一级医院',
+                                    type: 'bar',
+                                    stack: 'total',
+                                    emphasis: {
+                                        focus: 'series'
+                                    },
+                                    data: res.data.level1_data,
+                                    itemStyle: {
+                                        color: '#61a0a8'
+                                    }
+                                },
+                                {
+                                    name: '人口数量',
+                                    type: 'line',
+                                    yAxisIndex: 1,
+                                    data: res.data.population,
+                                    itemStyle: {
+                                        color: '#d48265'
+                                    }
+                                },
+                                {
+                                    name: '医院密度',
+                                    type: 'line',
+                                    yAxisIndex: 1, // 可放左轴或右轴，根据需求
+                                    data: res.data.total_data.map((val, i) => (val / res.data.population[i] * 10000).toFixed(2)),
+                                    itemStyle: {
+                                        color: '#91cc75'
+                                    }
+                                }
+
+                            ]
+                        };
+
+                        try {
+                            hospitalChart.setOption(option);
+                            console.log('图表配置成功');
+                        } catch (e) {
+                            console.error('图表配置失败:', e);
+                            alert('图表配置失败，请刷新页面重试');
+                        }
+                    } else {
+                        alert(res.msg || '获取数据失败');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('获取数据失败:', error);
+                    alert('获取数据失败，请稍后重试');
+                }
+            });
+
+            // 监听窗口大小变化
+            window.addEventListener('resize', function() {
+                hospitalChart.resize();
+            });
+        };
+    </script>
+</body>
+
+</html>

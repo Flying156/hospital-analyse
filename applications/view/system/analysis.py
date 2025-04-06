@@ -51,12 +51,8 @@ def get_hospital_data():
         GROUP BY short_city
         """
 
-        # 执行查询
-
-        g.cursor.execute(total_query)
-        total_result = g.cursor.fetchone()
-
-
+        level3_total, level2_total, level1_total = 0, 0, 0
+        hospital_total = 0
 
         g.cursor.execute(province_query)
         province_results = g.cursor.fetchall()
@@ -66,10 +62,13 @@ def get_hospital_data():
         for row in province_results:
             try:
                 # 计算各等级总数
-                level3_total = row[1] + row[2] + row[3]  # 三级甲等 + 三级乙等 + 三级丙等
-                level2_total = row[4] + row[5] + row[6]  # 二级甲等 + 二级乙等 + 二级丙等
-                level1_total = row[7] + row[8] + row[9]  # 一级甲等 + 一级乙等 + 一级丙等
-                total = level3_total + level2_total + level1_total
+                level3 = row[1] + row[2] + row[3]  # 三级甲等 + 三级乙等 + 三级丙等
+                level2 = row[4] + row[5] + row[6]  # 二级甲等 + 二级乙等 + 二级丙等
+                level1 = row[7] + row[8] + row[9]  # 一级甲等 + 一级乙等 + 一级丙等
+                total = level3 + level2 + level1
+                level3_total += level3
+                level2_total += level2
+                level1_total += level1
                 
                 province_data.append({
                     'name': row[0],  # 省份名称
@@ -87,15 +86,16 @@ def get_hospital_data():
             except Exception as e:
                 print("处理省份数据失败:", str(e))
                 continue
+        hospital_total = level3_total + level2_total + level1_total
         
         return jsonify({
             'code': 0,
             'msg': 'success',
             'data': {
-                'level3_count': total_result[1] if total_result else 0,
-                'level2_count': total_result[2] if total_result else 0,
-                'level1_count': total_result[3] if total_result else 0,
-                'hospital_sum': total_result[0] if total_result else 0,
+                'level3_count': level3_total,
+                'level2_count': level2_total,
+                'level1_count': level1_total,
+                'hospital_sum': hospital_total,
                 'province_data': province_data
             }
         })
