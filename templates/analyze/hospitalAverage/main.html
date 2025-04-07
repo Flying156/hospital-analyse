@@ -157,7 +157,7 @@
                                     name: '医院密度',
                                     type: 'line',
                                     yAxisIndex: 1, // 可放左轴或右轴，根据需求
-                                    data: res.data.total_data.map((val, i) => (val / res.data.population[i] * 10000).toFixed(2)),
+                                    data: res.data.total_data.map((val, i) => (res.data.total_data / res.data.population[i] * 10000).toFixed(2)),
                                     itemStyle: {
                                         color: '#91cc75'
                                     }
