@@ -14,31 +14,35 @@
              <label class="layui-form-label">城市</label>
                 <div class="layui-input-inline">
                     <select name="city" id="city">
+                        <option value="">请选择</option>
                     </select>
                 </div>
 
                 <label class="layui-form-label">医院等级</label>
                 <div class="layui-input-inline">
                     <select name="level" id="level">
+                        <option value="">请选择</option>
                     </select>
                 </div>
 
                 <label class="layui-form-label">医院类型</label>
                 <div class="layui-input-inline">
                     <select name="hospital_type" id="hospital_type">
+                        <option value="">请选择</option>
                     </select>
                 </div>
 
                 <label class="layui-form-label">经营模式</label>
                 <div class="layui-input-inline">
                     <select name="ownership" id="ownership">
+                        <option value="">请选择</option>
                     </select>
                 </div>
-                <button class="layui-btn layui-btn-md" lay-submit lay-filter="power-query">
+                <button class="layui-btn layui-btn-md" lay-submit lay-filter="user-query">
                     <i class="layui-icon layui-icon-search"></i>
                     查询
                 </button>
-                <button type="reset" class="layui-btn layui-btn-primary layui-btn-md">
+                <button type="reset" class="layui-btn layui-btn-primary layui-btn-md" id="reset-btn">
                     <i class="layui-icon layui-icon-refresh"></i>
                     重置
                 </button>
@@ -96,6 +100,7 @@
         let popup = layui.popup
         let common = layui.common
         let MODULE_PATH = "/system/hospital/"
+
         // 表格数据
         let cols = [
             [
@@ -110,112 +115,130 @@
         ]
 
         // 渲染表格数据
-        table.render({
+        let tableIns = table.render({
             elem: '#user-table',
             url: MODULE_PATH + 'data',
             page: true,
             cols: cols,
             skin: 'line',
-            toolbar: '#user-toolbar', /*工具栏*/
-            text: {none: '暂无人员信息'},
-            defaultToolbar: [{layEvent: 'refresh', icon: 'layui-icon-refresh'}, 'filter', 'print', 'exports'] /*默认工具栏*/
-        })
-
-
-        // 菜单栏渲染
-        dtree.on('node(\'dept-tree\')', function (obj) {
-            let field = form.val('user-query-form') /*用户账号查询*/
-            field.deptId = obj.param.nodeId
-            window.refresh(field)
-        })
-
-
-        form.on('submit(user-query)', function (data) {
-            table.reload('user-table', {where: data.field})
-            return false;
-        })
-
-
-        window.refresh = function (param) {
-            table.reload('user-table', {where: param})
-        }
-         var jsonData = {
-        "city": [
-           { "value": "北京市", "name": "北京市" },
-            { "value": "上海市", "name": "上海市" },
-            { "value": "天津市", "name": "天津市" },
-            { "value": "重庆市", "name": "重庆市" },
-            { "value": "河北省", "name": "河北省" },
-            { "value": "山西省", "name": "山西省" },
-            { "value": "辽宁省", "name": "辽宁省" },
-            { "value": "吉林省", "name": "吉林省" },
-            { "value": "黑龙江省", "name": "黑龙江省" },
-            { "value": "江苏省", "name": "江苏省" },
-            { "value": "浙江省", "name": "浙江省" },
-            { "value": "安徽省", "name": "安徽省" },
-            { "value": "福建省", "name": "福建省" },
-            { "value": "江西省", "name": "江西省" },
-            { "value": "山东省", "name": "山东省" },
-            { "value": "河南省", "name": "河南省" },
-            { "value": "湖北省", "name": "湖北省" },
-            { "value": "湖南省", "name": "湖南省" },
-            { "value": "广东省", "name": "广东省" },
-            { "value": "广西壮族自治区", "name": "广西壮族自治区" },
-            { "value": "海南省", "name": "海南省" },
-            { "value": "四川省", "name": "四川省" },
-            { "value": "贵州省", "name": "贵州省" },
-            { "value": "云南省", "name": "云南省" },
-            { "value": "西藏自治区", "name": "西藏自治区" },
-            { "value": "陕西省", "name": "陕西省" },
-            { "value": "甘肃省", "name": "甘肃省" },
-            { "value": "青海省", "name": "青海省" },
-            { "value": "宁夏回族自治区", "name": "宁夏回族自治区" },
-            { "value": "新疆维吾尔自治区", "name": "新疆维吾尔自治区" }
-        ],
-        "level": [
-            {"value": "三级甲等", "name": "三级甲等"},
-            {"value": "三级乙等", "name": "三级乙等"},
-            {"value": "三级丙等", "name": "三级丙等"},
-            {"value": "二级甲等", "name": "二级甲等"},
-            {"value": "二级乙等", "name": "二级乙等"},
-            {"value": "二级丙等", "name": "二级丙等"},
-            {"value": "一级甲等", "name": "一级甲等"},
-            {"value": "一级乙等", "name": "一级乙等"},
-            {"value": "一级丙等", "name": "一级丙等"},
-        ],
-        "hospital_type": [
-            {"value": "综合医院", "name": "综合医院"},
-            {"value": "专科医院", "name": "专科医院"},
-            {"value": "整形美容院", "name": "整形美容院"}
-        ],
-        "ownership": [
-            {"value": "国营", "name": "国营"},
-            {"value": "私立", "name": "私立"},
-            {"value": "合资", "name": "合资"}
-        ]
-    };
-
-    // 动态填充 select 选项
-    function loadSelectOptions(id, data) {
-        var $select = $('#' + id);
-        $select.empty(); // 清空原有选项
-        $select.append('<option value="" disabled selected>请选择</option>');
-        $.each(data, function(index, item) {
-            $select.append('<option value="' + item.value + '">' + item.name + '</option>');
+            toolbar: '#user-toolbar',
+            text: {none: '暂无医院信息'},
+            defaultToolbar: [{layEvent: 'refresh', icon: 'layui-icon-refresh'}, 'filter', 'print', 'exports']
         });
-        let selectedValue = localStorage.getItem(id);
-        if (selectedValue) {
-            $select.val(selectedValue);
+
+        // 监听查询提交
+        form.on('submit(user-query)', function(data) {
+            tableIns.reload({
+                where: data.field,
+                page: {
+                    curr: 1
+                }
+            });
+            return false;
+        });
+
+        // 监听重置按钮
+        $('#reset-btn').click(function() {
+            // 清空所有select的选择
+            $('select').val('');
+            // 重新渲染form
+            form.render('select');
+            // 清空本地存储
+            localStorage.removeItem('city');
+            localStorage.removeItem('level');
+            localStorage.removeItem('hospital_type');
+            localStorage.removeItem('ownership');
+            // 重新加载表格
+            tableIns.reload({
+                where: {},
+                page: {
+                    curr: 1
+                }
+            });
+        });
+
+        // 监听select变化并保存到localStorage
+        form.on('select', function(data) {
+            localStorage.setItem(data.elem.id, data.value);
+        });
+
+        // 加载JSON数据到select
+        var jsonData = {
+            "city": [
+                { "value": "北京市", "name": "北京市" },
+                { "value": "上海市", "name": "上海市" },
+                { "value": "天津市", "name": "天津市" },
+                { "value": "重庆市", "name": "重庆市" },
+                { "value": "河北省", "name": "河北省" },
+                { "value": "山西省", "name": "山西省" },
+                { "value": "辽宁省", "name": "辽宁省" },
+                { "value": "吉林省", "name": "吉林省" },
+                { "value": "黑龙江省", "name": "黑龙江省" },
+                { "value": "江苏省", "name": "江苏省" },
+                { "value": "浙江省", "name": "浙江省" },
+                { "value": "安徽省", "name": "安徽省" },
+                { "value": "福建省", "name": "福建省" },
+                { "value": "江西省", "name": "江西省" },
+                { "value": "山东省", "name": "山东省" },
+                { "value": "河南省", "name": "河南省" },
+                { "value": "湖北省", "name": "湖北省" },
+                { "value": "湖南省", "name": "湖南省" },
+                { "value": "广东省", "name": "广东省" },
+                { "value": "广西壮族自治区", "name": "广西壮族自治区" },
+                { "value": "海南省", "name": "海南省" },
+                { "value": "四川省", "name": "四川省" },
+                { "value": "贵州省", "name": "贵州省" },
+                { "value": "云南省", "name": "云南省" },
+                { "value": "西藏自治区", "name": "西藏自治区" },
+                { "value": "陕西省", "name": "陕西省" },
+                { "value": "甘肃省", "name": "甘肃省" },
+                { "value": "青海省", "name": "青海省" },
+                { "value": "宁夏回族自治区", "name": "宁夏回族自治区" },
+                { "value": "新疆维吾尔自治区", "name": "新疆维吾尔自治区" }
+            ],
+            "level": [
+                {"value": "三级甲等", "name": "三级甲等"},
+                {"value": "三级乙等", "name": "三级乙等"},
+                {"value": "三级丙等", "name": "三级丙等"},
+                {"value": "二级甲等", "name": "二级甲等"},
+                {"value": "二级乙等", "name": "二级乙等"},
+                {"value": "二级丙等", "name": "二级丙等"},
+                {"value": "一级甲等", "name": "一级甲等"},
+                {"value": "一级乙等", "name": "一级乙等"},
+                {"value": "一级丙等", "name": "一级丙等"},
+            ],
+            "hospital_type": [
+                {"value": "综合医院", "name": "综合医院"},
+                {"value": "专科医院", "name": "专科医院"},
+                {"value": "整形美容院", "name": "整形美容院"}
+            ],
+            "ownership": [
+                {"value": "国营", "name": "国营"},
+                {"value": "私营", "name": "私营"},
+            ]
+        };
+
+        // 动态填充select选项
+        function loadSelectOptions(id, data) {
+            var $select = $('#' + id);
+            $select.empty();
+            $select.append('<option value="">请选择</option>');
+            $.each(data, function(index, item) {
+                $select.append('<option value="' + item.value + '">' + item.name + '</option>');
+            });
+            // 恢复之前的选择
+            let selectedValue = localStorage.getItem(id);
+            if (selectedValue) {
+                $select.val(selectedValue);
+            }
+            form.render('select');
         }
-        form.render('select'); // 重新渲染
-    }
 
-    // 加载 JSON 数据
-    loadSelectOptions('city', jsonData.city);
-    loadSelectOptions('level', jsonData.level);
-    loadSelectOptions('hospital_type', jsonData.hospital_type);
-    loadSelectOptions('ownership', jsonData.ownership);
-
-    })
+        // 加载所有select选项
+        loadSelectOptions('city', jsonData.city);
+        loadSelectOptions('level', jsonData.level);
+        loadSelectOptions('hospital_type', jsonData.hospital_type);
+        loadSelectOptions('ownership', jsonData.ownership);
+    });
 </script>
 </html>
