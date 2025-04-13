@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>医院等级与重点科室分析</title>
+    <meta name="renderer" content="webkit">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <link rel="stylesheet" href="{{ url_for('static', filename='system/admin/css/other/analysis.css') }}"/>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="{{ url_for('static', filename='index/js/echarts.min.js') }}"></script>
+</head>
+
+<body>
+    <div class="pear-container">
+        <div class="layui-row layui-col-space10">
+            <div class="layui-col-md12">
+                <div class="layui-card">
+                    <div class="layui-card-body">
+                        <div id="department-chart" style="height:600px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        window.onload = function () {
+            var departmentChart = echarts.init(document.getElementById('department-chart'));
+
+            $.ajax({
+                url: '/system/hospitalLevelDepart/data',
+                type: 'GET',
+                dataType: 'json',
+                success: function (res) {
+                    if (res.code === 0) {
+                        const {
+                            departments,
+                            level3a_data,
+                            level3b_data,
+                            level3c_data,
+                            level2a_data,
+                            level2b_data,
+                            level2c_data,
+                            level1a_data,
+                            level1b_data,
+                            level1c_data
+                        } = res.data;
+
+                        const option = {
+                            title: {
+                                text: '医院等级与重点科室分布',
+                                left: 'center'
+                            },
+                            tooltip: {
+                                trigger: 'axis',
+                                axisPointer: { type: 'shadow' },
+                                formatter: function (params) {
+                                    const index = params[0].dataIndex;
+                                    let result = departments[index] + '<br/>';
+                                    let total = 0;
+                                    params.forEach(p => {
+                                        result += `${p.seriesName}: ${p.value}家<br/>`;
+                                        total += p.value;
+                                    });
+                                    result += `总计: ${total}家`;
+                                    return result;
+                                }
+                            },
+                            legend: {
+                                data: [
+                                    '三级甲等', '三级乙等', '三级丙等',
+                                    '二级甲等', '二级乙等', '二级丙等',
+                                    '一级甲等', '一级乙等', '一级丙等'
+                                ],
+                                top: 30,
+                                type: 'scroll',
+                                pageButtonPosition: 'end'
+                            },
+                            grid: {
+                                left: '3%',
+                                right: '4%',
+                                bottom: '3%',
+                                containLabel: true
+                            },
+                            dataZoom: [
+                                {
+                                    type: 'inside',
+                                    xAxisIndex: [0],
+                                    start: 0,
+                                    end: 6
+                                }
+                            ],
+                            xAxis: {
+                                type: 'category',
+                                data: departments,
+                                axisLabel: {
+                                    interval: 0,
+                                    rotate: 45,
+                                    formatter: function (value) {
+                                        return value.length > 4 ? value.substring(0, 4) + '...' : value;
+                                    }
+                                }
+                            },
+                            yAxis: {
+                                type: 'value',
+                                name: '医院数量',
+                                nameLocation: 'middle',
+                                nameGap: 50
+                            },
+                            series: [
+                                {
+                                    name: '三级甲等',
+                                    type: 'bar',
+                                    stack: 'total',
+                                    data: level3a_data,
+                                    itemStyle: { color: '#c23531' }
+                                },
+                                {
+                                    name: '三级乙等',
+                                    type: 'bar',
+                                    stack: 'total',
+                                    data: level3b_data,
+                                    itemStyle: { color: '#d48265' }
+                                },
+                                {
+                                    name: '三级丙等',
+                                    type: 'bar',
+                                    stack: 'total',
+                                    data: level3c_data,
+                                    itemStyle: { color: '#e6b600' }
+                                },
+                                {
+                                    name: '二级甲等',
+                                    type: 'bar',
+                                    stack: 'total',
+                                    data: level2a_data,
+                                    itemStyle: { color: '#2f4554' }
+                                },
+                                {
+                                    name: '二级乙等',
+                                    type: 'bar',
+                                    stack: 'total',
+                                    data: level2b_data,
+                                    itemStyle: { color: '#546570' }
+                                },
+                                {
+                                    name: '二级丙等',
+                                    type: 'bar',
+                                    stack: 'total',
+                                    data: level2c_data,
+                                    itemStyle: { color: '#91c7ae' }
+                                },
+                                {
+                                    name: '一级甲等',
+                                    type: 'bar',
+                                    stack: 'total',
+                                    data: level1a_data,
+                                    itemStyle: { color: '#61a0a8' }
+                                },
+                                {
+                                    name: '一级乙等',
+                                    type: 'bar',
+                                    stack: 'total',
+                                    data: level1b_data,
+                                    itemStyle: { color: '#749f83' }
+                                },
+                                {
+                                    name: '一级丙等',
+                                    type: 'bar',
+                                    stack: 'total',
+                                    data: level1c_data,
+                                    itemStyle: { color: '#ca8622' }
+                                }
+                            ]
+                        };
+
+                        departmentChart.setOption(option);
+                        
+                        // 添加鼠标滚轮缩放功能
+                        departmentChart.getZr().on('mousewheel', function (params) {
+                            const option = departmentChart.getOption();
+                            const dataZoom = option.dataZoom[0];
+                            const delta = params.event.wheelDelta;
+                            
+                            if (delta > 0) {
+                                // 放大
+                                dataZoom.start = Math.max(0, dataZoom.start - 1);
+                                dataZoom.end = Math.min(100, dataZoom.end + 1);
+                            } else {
+                                // 缩小
+                                dataZoom.start = Math.min(dataZoom.end - 5, dataZoom.start + 1);
+                                dataZoom.end = Math.max(dataZoom.start + 5, dataZoom.end - 1);
+                            }
+                            
+                            departmentChart.setOption(option);
+                        });
+                        
+                        window.addEventListener('resize', () => departmentChart.resize());
+                    } else {
+                        alert(res.msg || '获取数据失败');
+                    }
+                },
+                error: function (xhr, status, error) {
+                    console.error('获取数据失败:', error);
+                    alert('获取数据失败，请稍后重试');
+                }
+            });
+        };
+    </script>
+</body>
+</html>
