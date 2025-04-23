@@ -1,8 +1,8 @@
 from flask import g, Blueprint, render_template, jsonify
 from applications.extensions.init_hive import HiveConnection
-
+import json
+from applications.extensions.init_redis import redis  # 导入 redis 配置import json
 bp = Blueprint('analysis', __name__, url_prefix='/analysis')
-
 
 @bp.route('/main')
 def main():
@@ -24,6 +24,12 @@ def teardown_request(exception):
 @bp.route('/data', methods=['GET'])
 def get_hospital_data():
     try:
+
+        redis_key = 'hospital_data'
+        cached_data = redis.get(redis_key)
+        if cached_data:
+            # 如果Redis缓存中有数据，则返回缓存数据
+            return jsonify(json.loads(cached_data))
         # 查询各等级医院总数（只统计三级、二级、一级的总数）
         total_query = """
         SELECT 
@@ -87,8 +93,7 @@ def get_hospital_data():
                 print("处理省份数据失败:", str(e))
                 continue
         hospital_total = level3_total + level2_total + level1_total
-        
-        return jsonify({
+        response_data = {
             'code': 0,
             'msg': 'success',
             'data': {
@@ -98,7 +103,9 @@ def get_hospital_data():
                 'hospital_sum': hospital_total,
                 'province_data': province_data
             }
-        })
+        }
+        redis.set(redis_key, json.dumps(response_data))  # 设置缓存，过期时间为60秒
+        return jsonify(response_data)
         
     except Exception as e:
         print("发生错误:", str(e))

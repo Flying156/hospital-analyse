@@ -38,6 +38,9 @@ class BaseConfig:
     # 数据库的配置信息
     # SQLALCHEMY_DATABASE_URI = 'sqlite:///../pear.db'
 
+    # config.py
+    REDIS_URL = "redis://:localhost:6379/0"
+
     # 默认日志等级
     LOG_LEVEL = logging.WARN
 

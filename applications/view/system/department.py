@@ -1,7 +1,8 @@
 from flask import Flask, g
 from flask import Blueprint, render_template, request, jsonify
 from flask_login import login_required
-
+from applications.extensions.init_redis import redis  # 导入 redis 配置import json
+import json
 from applications.common.utils.rights import authorize
 from applications.extensions.init_hive import HiveConnection
 
@@ -31,6 +32,14 @@ def teardown_request(exception):
 @login_required
 def get_department_data():
     try:
+
+        # 查询Redis缓存中的科室数据
+        redis_key = 'department_data'
+        cached_data = redis.get(redis_key)
+
+        if cached_data:
+            # 如果Redis缓存中有数据，直接返回缓存
+            return jsonify(json.loads(cached_data))
         # 查询所有科室数据
         department_query = """
         SELECT departments
@@ -70,11 +79,15 @@ def get_department_data():
             if count > 1  # 只保留出现次数大于1的科室
         ]
 
-        return jsonify({
+        response_data = {
             'code': 0,
             'msg': 'success',
             'data': department_data
-        })
+        }
+
+        # 缓存数据到Redis，过期时间60秒
+        redis.set(redis_key, json.dumps(response_data))
+        return jsonify(response_data)
 
     except Exception as e:
         print("发生错误:", str(e))

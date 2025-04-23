@@ -1,12 +1,13 @@
 from flask import g, Blueprint, render_template, jsonify
 from flask_login import login_required
-
+import json
+from applications.extensions.init_redis import redis  # 导入 redis 配置import json
 from applications.common.utils.rights import authorize
 from applications.extensions.init_hive import HiveConnection
 
 bp = Blueprint('hospitalType', __name__, url_prefix='/hospitalType')
 
-
+# 初始化 Redis
 @bp.route('/')
 @authorize("system:hospitalType:main")
 def main():
@@ -29,6 +30,13 @@ def teardown_request(exception):
 @login_required
 def get_hospitalType():
     try:
+
+        redis_key = 'hospital_type_data'
+        cached_data = redis.get(redis_key)
+
+        if cached_data:
+            # 如果缓存中有数据，直接返回缓存数据
+            return jsonify(json.loads(cached_data))
         # 查询医院类型和所有制分布
         query = """
         SELECT hospital_type, ownership, COUNT(*) AS count
@@ -55,8 +63,14 @@ def get_hospitalType():
                 'name': ownership,
                 'value': count
             })
-        print(data)
-        
+
+        # 将查询结果缓存到 Redis，缓存时间为 60 秒
+        redis.set(redis_key, json.dumps({
+            'code': 0,
+            'msg': 'success',
+            'data': data
+        }))
+
         return jsonify({
             'code': 0,
             'msg': 'success',

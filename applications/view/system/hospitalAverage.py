@@ -1,6 +1,7 @@
 from flask import g, Blueprint, render_template, jsonify
 from flask_login import login_required
-
+import json
+from applications.extensions.init_redis import redis  # 导入 redis 配置import json
 from applications.common.utils.rights import authorize
 from applications.extensions.init_hive import HiveConnection
 
@@ -29,6 +30,12 @@ def teardown_request(exception):
 @login_required
 def get_hospital_average():
     try:
+        redis_key = 'hospital_average_data'
+        cached_data = redis.get(redis_key)
+
+        if cached_data:
+            # 如果缓存中有数据，直接返回缓存数据
+            return jsonify(json.loads(cached_data))
         # 查询医院等级和人口数据
         query = """
         SELECT 
@@ -63,8 +70,8 @@ def get_hospital_average():
             level2_data.append(row[3])
             level1_data.append(row[4])
             total_data.append(row[5])
-        
-        return jsonify({
+
+        response_data = {
             'code': 0,
             'msg': 'success',
             'data': {
@@ -75,7 +82,12 @@ def get_hospital_average():
                 'level1_data': level1_data,
                 'total_data': total_data
             }
-        })
+        }
+
+        # 将查询结果缓存到 Redis，缓存时间为 60 秒
+        redis.set(redis_key, json.dumps(response_data))
+
+        return jsonify(response_data)
         
     except Exception as e:
         return jsonify({

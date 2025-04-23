@@ -6,6 +6,7 @@ from .init_error_views import init_error_views
 from .init_migrate import init_migrate
 from .init_session import init_session
 from .init_plugins import register_plugin, broadcast_execute
+from .init_redis import init_redis
 
 
 def init_plugs(app: Flask) -> None:
@@ -18,6 +19,7 @@ def init_plugs(app: Flask) -> None:
     init_databases(app)
     init_migrate(app)
     init_session(app)
+    init_redis(app)
 
     # 系统蓝图相关
     init_template_directives(app)

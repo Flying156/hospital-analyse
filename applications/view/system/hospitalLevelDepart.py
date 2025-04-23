@@ -1,11 +1,11 @@
 from flask import g, Blueprint, render_template, jsonify
 from flask_login import login_required
-
+import json
+from applications.extensions.init_redis import redis  # 导入 redis 配置import json
 from applications.common.utils.rights import authorize
 from applications.extensions.init_hive import HiveConnection
 
 bp = Blueprint('hospitalLevelDepart', __name__, url_prefix='/hospitalLevelDepart')
-
 
 @bp.route('/')
 @authorize("system:hospitalLevelDepart:main")
@@ -32,6 +32,13 @@ def teardown_request(exception):
 @login_required
 def get_hospital_level_depart():
     try:
+
+        redis_key = 'hospital_level_depart_data'
+        cached_data = redis.get(redis_key)
+
+        if cached_data:
+            # 如果缓存中有数据，直接返回缓存数据
+            return jsonify(json.loads(cached_data))
         # 查询医院等级和重点科室数据
         query = """
         SELECT 
@@ -99,7 +106,7 @@ def get_hospital_level_depart():
         level1b_data = [departments_count[dept]['一级乙等'] for dept in sorted_departments]
         level1c_data = [departments_count[dept]['一级丙等'] for dept in sorted_departments]
 
-        return jsonify({
+        response_data = {
             'code': 0,
             'msg': 'success',
             'data': {
@@ -114,7 +121,12 @@ def get_hospital_level_depart():
                 'level1b_data': level1b_data,
                 'level1c_data': level1c_data
             }
-        })
+        }
+
+        # 将查询结果缓存到 Redis，缓存时间为 60 秒
+        redis.set(redis_key, json.dumps(response_data))
+
+        return jsonify(response_data)
 
     except Exception as e:
         print("错误详情:", str(e))
