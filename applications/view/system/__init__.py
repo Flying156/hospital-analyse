@@ -13,6 +13,7 @@ from applications.view.system.department import bp as department_bp
 from applications.view.system.hosptialType import bp as hosptialType_bp
 from applications.view.system.hospitalAverage import bp as hospitalAverage_bp
 from applications.view.system.hospitalLevelDepart import bp as hospitalLevelDepart_bp
+from applications.view.system.hospitalCluster import bp as hospitalCluster_bp
 # 创建sys
 system_bp = Blueprint('system', __name__, url_prefix='/system')
 
@@ -31,5 +32,6 @@ def register_system_bps(app: Flask):
     system_bp.register_blueprint(hosptialType_bp)
     system_bp.register_blueprint(hospitalAverage_bp)
     system_bp.register_blueprint(hospitalLevelDepart_bp)
+    system_bp.register_blueprint(hospitalCluster_bp)
     app.register_blueprint(index_bp)
     app.register_blueprint(system_bp)

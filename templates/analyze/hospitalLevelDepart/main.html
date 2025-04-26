@@ -2,13 +2,57 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>医院等级与重点科室分析</title>
+    <title>医疗资源统计与分析</title>
     <meta name="renderer" content="webkit">
     <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
     <link rel="stylesheet" href="{{ url_for('static', filename='system/admin/css/other/analysis.css') }}"/>
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="{{ url_for('static', filename='index/js/echarts.min.js') }}"></script>
+    <style>
+        .report-container {
+            margin-top: 20px;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 4px;
+            box-shadow: 0 1px 2px 0 rgba(0,0,0,.05);
+        }
+        .report-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: #333;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        .report-section {
+            margin-bottom: 20px;
+        }
+        .report-section-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #666;
+        }
+        .report-content {
+            line-height: 1.6;
+            color: #666;
+            text-indent: 2em;
+        }
+        .report-highlight {
+            color: #1E9FFF;
+            font-weight: bold;
+        }
+        .report-data {
+            background-color: #f8f8f8;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .report-chart {
+            margin: 20px 0;
+        }
+    </style>
 </head>
 
 <body>
@@ -21,13 +65,54 @@
                     </div>
                 </div>
             </div>
+            <div class="layui-col-md12">
+                <div class="layui-card">
+                    <div class="layui-card-body">
+                        <div id="cluster-chart" style="height:600px;"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="layui-col-md12">
+                <div class="layui-card">
+                    <div class="layui-card-body">
+                        <div class="report-container">
+                            <div class="report-title">医疗资源统计与分析报告</div>
+                            
+                            <div class="report-section">
+                                <div class="report-section-title">1. 医院等级与重点科室分布分析</div>
+                                <div class="report-content" id="department-analysis">
+                                    <p>正在加载分析数据...</p>
+                                </div>
+                            </div>
+                            
+                            <div class="report-section">
+                                <div class="report-section-title">2. 医院聚类分析</div>
+                                <div class="report-content" id="cluster-analysis">
+                                    <p>正在加载分析数据...</p>
+                                </div>
+                            </div>
+                            
+                            <div class="report-section">
+                                <div class="report-section-title">3. 结论与建议</div>
+                                <div class="report-content" id="conclusion">
+                                    <p>正在生成结论与建议...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
     <script>
         window.onload = function () {
             var departmentChart = echarts.init(document.getElementById('department-chart'));
+            var clusterChart = echarts.init(document.getElementById('cluster-chart'));
+            var departmentData = {};
+            var clusterData = {};
 
+            // 获取医院等级与重点科室分布数据
             $.ajax({
                 url: '/system/hospitalLevelDepart/data',
                 type: 'GET',
@@ -46,8 +131,23 @@
                             level1b_data,
                             level1c_data
                         } = res.data;
+                        
+                        // 保存数据用于分析报告
+                        departmentData = {
+                            departments,
+                            level3a_data,
+                            level3b_data,
+                            level3c_data,
+                            level2a_data,
+                            level2b_data,
+                            level2c_data,
+                            level1a_data,
+                            level1b_data,
+                            level1c_data
+                        };
 
-                        const option = {
+                        // 科室分布图表配置
+                        const departmentOption = {
                             title: {
                                 text: '医院等级与重点科室分布',
                                 left: 'center'
@@ -175,7 +275,8 @@
                             ]
                         };
 
-                        departmentChart.setOption(option);
+                        // 设置图表配置
+                        departmentChart.setOption(departmentOption);
                         
                         // 添加鼠标滚轮缩放功能
                         departmentChart.getZr().on('mousewheel', function (params) {
@@ -196,7 +297,8 @@
                             departmentChart.setOption(option);
                         });
                         
-                        window.addEventListener('resize', () => departmentChart.resize());
+                        // 生成科室分布分析报告
+                        generateDepartmentAnalysis();
                     } else {
                         alert(res.msg || '获取数据失败');
                     }
@@ -206,6 +308,356 @@
                     alert('获取数据失败，请稍后重试');
                 }
             });
+
+            // 获取医院聚类分析数据
+            $.ajax({
+                url: '/system/hospitalLevelDepart/cluster',
+                type: 'GET',
+                dataType: 'json',
+                success: function(res) {
+                    if(res.code === 0) {
+                        // 准备数据
+                        var data = res.data;
+                        clusterData = data;
+                        
+                        // 按聚类分组数据
+                        var clusterGroups = {};
+                        data.forEach(function(item) {
+                            if (!clusterGroups[item.cluster_label]) {
+                                clusterGroups[item.cluster_label] = [];
+                            }
+                            clusterGroups[item.cluster_label].push([
+                                item.dept_count,
+                                item.level_value,
+                                item.hospital_name,
+                                item.hospital_level,
+                                item.hospital_type,  // 添加医院类型
+                                item.ownership,
+                                item.city
+                            ]);
+                        });
+
+                        // 准备系列数据
+                        var series = [];
+                        var colors = ['#5470c6', '#91cc75', '#fac858'];  // 修改颜色数组
+                        var clusterLabels = Object.keys(clusterGroups);
+                        
+                        // 确保所有医院类型都被显示
+                        var allTypes = ['综合医院', '专科医院', '整形美容院'];
+                        allTypes.forEach(function(type, index) {
+                            if (clusterGroups[type]) {
+                                series.push({
+                                    name: type,
+                                    type: 'scatter',
+                                    data: clusterGroups[type],
+                                    symbolSize: 10,
+                                    itemStyle: {
+                                        color: colors[index]
+                                    },
+                                    label: {
+                                        show: false
+                                    },
+                                    emphasis: {
+                                        label: {
+                                            show: true
+                                        }
+                                    }
+                                });
+                            }
+                        });
+
+                        const clusterOption = {
+                            title: {
+                                text: '医院聚类分析',
+                                left: 'center'
+                            },
+                            tooltip: {
+                                trigger: 'item',
+                                formatter: function(params) {
+                                    return '医院名称: ' + params.data[2] + '<br/>' +
+                                           '医院等级: ' + params.data[3] + '<br/>' +
+                                           '医院类型: ' + params.data[4] + '<br/>' +
+                                           '所有制: ' + params.data[5] + '<br/>' +
+                                           '所在城市: ' + params.data[6] + '<br/>' +
+                                           '科室数量: ' + params.data[0];
+                                }
+                            },
+                            legend: {
+                                data: allTypes,
+                                top: 30
+                            },
+                            grid: {
+                                left: '3%',
+                                right: '4%',
+                                bottom: '3%',
+                                containLabel: true
+                            },
+                            xAxis: {
+                                type: 'value',
+                                name: '科室数量',
+                                nameLocation: 'middle',
+                                nameGap: 30
+                            },
+                            yAxis: {
+                                type: 'value',
+                                name: '医院等级',
+                                nameLocation: 'middle',
+                                nameGap: 30,
+                                min: 0,
+                                max: 3,
+                                interval: 0.1,  // 添加间隔设置
+                                axisLabel: {
+                                    formatter: function(value) {
+                                        if (value === 3) return '三级甲等';
+                                        if (value === 2.5) return '三级乙等';
+                                        if (value === 2) return '三级丙等';
+                                        if (value === 1.5) return '二级甲等';
+                                        if (value === 1) return '二级乙等';
+                                        if (value === 0.5) return '二级丙等';
+                                        if (value === 0.3) return '一级甲等';
+                                        if (value === 0.2) return '一级乙等';
+                                        if (value === 0.1) return '一级丙等';
+                                        return '';
+                                    }
+                                }
+                            },
+                            series: series
+                        };
+
+                        // 设置图表配置
+                        clusterChart.setOption(clusterOption);
+                        
+                        // 生成聚类分析报告
+                        generateClusterAnalysis();
+                        generateConclusion();
+                    } else {
+                        alert(res.msg || '获取聚类数据失败');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('获取聚类数据失败:', error);
+                    alert('获取聚类数据失败，请稍后重试');
+                }
+            });
+            
+            // 监听窗口大小变化
+            window.addEventListener('resize', () => {
+                departmentChart.resize();
+                clusterChart.resize();
+            });
+            
+            // 生成科室分布分析报告
+            function generateDepartmentAnalysis() {
+                if (!departmentData.departments || departmentData.departments.length === 0) {
+                    $('#department-analysis').html('<p>暂无数据</p>');
+                    return;
+                }
+                
+                // 计算各等级医院总数
+                const total3a = departmentData.level3a_data.reduce((a, b) => a + b, 0);
+                const total3b = departmentData.level3b_data.reduce((a, b) => a + b, 0);
+                const total3c = departmentData.level3c_data.reduce((a, b) => a + b, 0);
+                const total2a = departmentData.level2a_data.reduce((a, b) => a + b, 0);
+                const total2b = departmentData.level2b_data.reduce((a, b) => a + b, 0);
+                const total2c = departmentData.level2c_data.reduce((a, b) => a + b, 0);
+                const total1a = departmentData.level1a_data.reduce((a, b) => a + b, 0);
+                const total1b = departmentData.level1b_data.reduce((a, b) => a + b, 0);
+                const total1c = departmentData.level1c_data.reduce((a, b) => a + b, 0);
+                
+                // 计算各等级医院总数
+                const total3 = total3a + total3b + total3c;
+                const total2 = total2a + total2b + total2c;
+                const total1 = total1a + total1b + total1c;
+                const total = total3 + total2 + total1;
+                
+                // 找出科室数量最多的前5个科室
+                const deptTotals = departmentData.departments.map((dept, index) => {
+                    const total = departmentData.level3a_data[index] + 
+                                 departmentData.level3b_data[index] + 
+                                 departmentData.level3c_data[index] + 
+                                 departmentData.level2a_data[index] + 
+                                 departmentData.level2b_data[index] + 
+                                 departmentData.level2c_data[index] + 
+                                 departmentData.level1a_data[index] + 
+                                 departmentData.level1b_data[index] + 
+                                 departmentData.level1c_data[index];
+                    return { dept, total };
+                });
+                
+                deptTotals.sort((a, b) => b.total - a.total);
+                const top5Depts = deptTotals.slice(0, 5);
+                
+                // 生成分析报告
+                let report = `
+                    <p>根据医院等级与重点科室分布数据，我们进行了以下分析：</p>
+                    <div class="report-data">
+                        <p>1. 医院等级分布：</p>
+                        <ul>
+                            <li>三级医院：<span class="report-highlight">${total3}</span>家，占比<span class="report-highlight">${(total3/total*100).toFixed(2)}%</span></li>
+                            <li>二级医院：<span class="report-highlight">${total2}</span>家，占比<span class="report-highlight">${(total2/total*100).toFixed(2)}%</span></li>
+                            <li>一级医院：<span class="report-highlight">${total1}</span>家，占比<span class="report-highlight">${(total1/total*100).toFixed(2)}%</span></li>
+                        </ul>
+                    </div>
+                    <div class="report-data">
+                        <p>2. 三级医院内部结构：</p>
+                        <ul>
+                            <li>三级甲等：<span class="report-highlight">${total3a}</span>家，占比<span class="report-highlight">${(total3a/total3*100).toFixed(2)}%</span></li>
+                            <li>三级乙等：<span class="report-highlight">${total3b}</span>家，占比<span class="report-highlight">${(total3b/total3*100).toFixed(2)}%</span></li>
+                            <li>三级丙等：<span class="report-highlight">${total3c}</span>家，占比<span class="report-highlight">${(total3c/total3*100).toFixed(2)}%</span></li>
+                        </ul>
+                    </div>
+                    <div class="report-data">
+                        <p>3. 重点科室分布：</p>
+                        <ul>
+                            ${top5Depts.map((item, index) => `
+                                <li>${index+1}. <span class="report-highlight">${item.dept}</span>：<span class="report-highlight">${item.total}</span>家医院</li>
+                            `).join('')}
+                        </ul>
+                    </div>
+                    <p>从数据可以看出，三级医院占比<span class="report-highlight">${(total3/total*100).toFixed(2)}%</span>，是医疗体系的重要组成部分。在三级医院中，三级甲等医院占比<span class="report-highlight">${(total3a/total3*100).toFixed(2)}%</span>，表明高水平医院在三级医院中占比较高。</p>
+                    <p>重点科室方面，<span class="report-highlight">${top5Depts[0].dept}</span>是最常见的科室，有<span class="report-highlight">${top5Depts[0].total}</span>家医院设有该科室，其次是<span class="report-highlight">${top5Depts[1].dept}</span>和<span class="report-highlight">${top5Depts[2].dept}</span>。</p>
+                `;
+                
+                $('#department-analysis').html(report);
+            }
+            
+            // 生成聚类分析报告
+            function generateClusterAnalysis() {
+                if (!clusterData || clusterData.length === 0) {
+                    $('#cluster-analysis').html('<p>暂无数据</p>');
+                    return;
+                }
+                
+                // 按聚类标签分组
+                const clusterGroups = {};
+                clusterData.forEach(item => {
+                    if (!clusterGroups[item.cluster_label]) {
+                        clusterGroups[item.cluster_label] = [];
+                    }
+                    clusterGroups[item.cluster_label].push(item);
+                });
+                
+                // 计算每个聚类的平均科室数量和医院等级
+                const clusterStats = {};
+                Object.keys(clusterGroups).forEach(label => {
+                    const hospitals = clusterGroups[label];
+                    const avgDeptCount = hospitals.reduce((sum, h) => sum + h.dept_count, 0) / hospitals.length;
+                    const avgLevel = hospitals.reduce((sum, h) => sum + h.level_value, 0) / hospitals.length;
+                    const count = hospitals.length;
+                    
+                    clusterStats[label] = {
+                        avgDeptCount,
+                        avgLevel,
+                        count
+                    };
+                });
+                
+                // 生成分析报告
+                let report = `
+                    <p>根据医院聚类分析数据，我们进行了以下分析：</p>
+                    <div class="report-data">
+                        <p>1. 聚类结果：</p>
+                        <ul>
+                            ${Object.keys(clusterStats).map(label => `
+                                <li><span class="report-highlight">${label}</span>：共<span class="report-highlight">${clusterStats[label].count}</span>家医院，平均科室数量<span class="report-highlight">${clusterStats[label].avgDeptCount.toFixed(1)}</span>个，平均医院等级<span class="report-highlight">${clusterStats[label].avgLevel.toFixed(1)}</span></li>
+                            `).join('')}
+                        </ul>
+                    </div>
+                `;
+                
+                // 添加聚类特征分析
+                report += `
+                    <p>2. 聚类特征分析：</p>
+                    <ul>
+                        <li>综合医院：科室数量多，通常是三级或二级医院，提供全面的医疗服务</li>
+                        <li>专科医院：科室数量少，专注于特定领域的医疗服务</li>
+                        <li>整形美容院：专注于整形美容服务，科室数量较少</li>
+                    </ul>
+                `;
+                
+                $('#cluster-analysis').html(report);
+            }
+            
+            // 生成结论与建议
+            function generateConclusion() {
+                if (!departmentData.departments || !clusterData || clusterData.length === 0) {
+                    $('#conclusion').html('<p>暂无数据</p>');
+                    return;
+                }
+                
+                // 计算各等级医院总数
+                const total3a = departmentData.level3a_data.reduce((a, b) => a + b, 0);
+                const total3b = departmentData.level3b_data.reduce((a, b) => a + b, 0);
+                const total3c = departmentData.level3c_data.reduce((a, b) => a + b, 0);
+                const total2a = departmentData.level2a_data.reduce((a, b) => a + b, 0);
+                const total2b = departmentData.level2b_data.reduce((a, b) => a + b, 0);
+                const total2c = departmentData.level2c_data.reduce((a, b) => a + b, 0);
+                const total1a = departmentData.level1a_data.reduce((a, b) => a + b, 0);
+                const total1b = departmentData.level1b_data.reduce((a, b) => a + b, 0);
+                const total1c = departmentData.level1c_data.reduce((a, b) => a + b, 0);
+                
+                // 计算各等级医院总数
+                const total3 = total3a + total3b + total3c;
+                const total2 = total2a + total2b + total2c;
+                const total1 = total1a + total1b + total1c;
+                const total = total3 + total2 + total1;
+                
+                // 按聚类标签分组
+                const clusterGroups = {};
+                clusterData.forEach(item => {
+                    if (!clusterGroups[item.cluster_label]) {
+                        clusterGroups[item.cluster_label] = [];
+                    }
+                    clusterGroups[item.cluster_label].push(item);
+                });
+                
+                // 计算每个聚类的平均科室数量和医院等级
+                const clusterStats = {};
+                Object.keys(clusterGroups).forEach(label => {
+                    const hospitals = clusterGroups[label];
+                    const avgDeptCount = hospitals.reduce((sum, h) => sum + h.dept_count, 0) / hospitals.length;
+                    const avgLevel = hospitals.reduce((sum, h) => sum + h.level_value, 0) / hospitals.length;
+                    const count = hospitals.length;
+                    
+                    clusterStats[label] = {
+                        avgDeptCount,
+                        avgLevel,
+                        count
+                    };
+                });
+                
+                // 生成结论与建议
+                let report = `
+                    <p>基于以上分析，我们得出以下结论与建议：</p>
+                    <div class="report-data">
+                        <p>1. 医院等级结构：</p>
+                        <ul>
+                            <li>三级医院占比<span class="report-highlight">${(total3/total*100).toFixed(2)}%</span>，二级医院占比<span class="report-highlight">${(total2/total*100).toFixed(2)}%</span>，一级医院占比<span class="report-highlight">${(total1/total*100).toFixed(2)}%</span></li>
+                            <li>医院等级结构呈现"金字塔"形状，符合医疗资源分配的合理结构</li>
+                        </ul>
+                    </div>
+                    <div class="report-data">
+                        <p>2. 医院类型分布：</p>
+                        <ul>
+                            <li>综合医院：<span class="report-highlight">${clusterStats['综合医院'] ? clusterStats['综合医院'].count : 0}</span>家，占比<span class="report-highlight">${clusterStats['综合医院'] ? (clusterStats['综合医院'].count/clusterData.length*100).toFixed(2) : 0}%</span></li>
+                            <li>专科医院：<span class="report-highlight">${clusterStats['专科医院'] ? clusterStats['专科医院'].count : 0}</span>家，占比<span class="report-highlight">${clusterStats['专科医院'] ? (clusterStats['专科医院'].count/clusterData.length*100).toFixed(2) : 0}%</span></li>
+                            <li>整形美容院：<span class="report-highlight">${clusterStats['整形美容院'] ? clusterStats['整形美容院'].count : 0}</span>家，占比<span class="report-highlight">${clusterStats['整形美容院'] ? (clusterStats['整形美容院'].count/clusterData.length*100).toFixed(2) : 0}%</span></li>
+                        </ul>
+                    </div>
+                    <div class="report-data">
+                        <p>3. 建议：</p>
+                        <ul>
+                            <li>加强综合医院建设，提高医疗技术水平和服务质量</li>
+                            <li>支持专科医院发展，满足特定医疗需求</li>
+                            <li>规范整形美容院管理，确保医疗安全</li>
+                            <li>加强医院间协作，建立分级诊疗体系</li>
+                            <li>根据地区医疗需求，合理规划医院布局</li>
+                        </ul>
+                    </div>
+                `;
+                
+                $('#conclusion').html(report);
+            }
         };
     </script>
 </body>
