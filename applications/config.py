@@ -7,7 +7,7 @@ class BaseConfig:
     SUPERADMIN = 'admin'
 
     # 系统名称
-    SYSTEM_NAME = 'Pear Admin'
+    SYSTEM_NAME = '医疗资源统计与分析可视化系统'
 
     # 主题面板的链接列表配置
     SYSTEM_PANEL_LINKS = [
