@@ -558,9 +558,22 @@
                     <div class="report-data">
                         <p>1. 聚类结果：</p>
                         <ul>
-                            ${Object.keys(clusterStats).map(label => `
-                                <li><span class="report-highlight">${label}</span>：共<span class="report-highlight">${clusterStats[label].count}</span>家医院，平均科室数量<span class="report-highlight">${clusterStats[label].avgDeptCount.toFixed(1)}</span>个，平均医院等级<span class="report-highlight">${clusterStats[label].avgLevel.toFixed(1)}</span></li>
-                            `).join('')}
+                            ${Object.keys(clusterStats).map(label => {
+                                // 将医院等级数值转换为文字描述
+                                let levelText = '';
+                                if (clusterStats[label].avgLevel >= 2.9) levelText = '三级甲等';
+                                else if (clusterStats[label].avgLevel >= 2.4) levelText = '三级乙等';
+                                else if (clusterStats[label].avgLevel >= 1.9) levelText = '三级丙等';
+                                else if (clusterStats[label].avgLevel >= 1.4) levelText = '二级甲等';
+                                else if (clusterStats[label].avgLevel >= 0.9) levelText = '二级乙等';
+                                else if (clusterStats[label].avgLevel >= 0.4) levelText = '二级丙等';
+                                else if (clusterStats[label].avgLevel >= 0.25) levelText = '一级甲等';
+                                else if (clusterStats[label].avgLevel >= 0.15) levelText = '一级乙等';
+                                else if (clusterStats[label].avgLevel >= 0.05) levelText = '一级丙等';
+                                else levelText = '未知等级';
+                                
+                                return `<li><span class="report-highlight">${label}</span>：共<span class="report-highlight">${clusterStats[label].count}</span>家医院，平均科室数量<span class="report-highlight">${clusterStats[label].avgDeptCount.toFixed(1)}</span>个，平均医院等级<span class="report-highlight">${levelText}</span></li>`;
+                            }).join('')}
                         </ul>
                     </div>
                 `;
