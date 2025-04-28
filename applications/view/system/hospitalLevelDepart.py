@@ -139,7 +139,7 @@ def get_hospital_level_depart():
             'data': {}
         })
 
-@bp.route('/cluster')
+@bp.route('/levelDepartCluster')
 @login_required
 def get_hospital_cluster():
     try:

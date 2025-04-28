@@ -2,13 +2,92 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>医院聚类分析</title>
+    <title>医疗资源预测分析</title>
     <meta name="renderer" content="webkit">
     <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
     <link rel="stylesheet" href="{{ url_for('static', filename='system/admin/css/other/analysis.css') }}"/>
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="{{ url_for('static', filename='index/js/echarts.min.js') }}"></script>
+    <style>
+        .report-container {
+            margin-top: 20px;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 4px;
+            box-shadow: 0 1px 2px 0 rgba(0,0,0,.05);
+        }
+        .report-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: #333;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        .report-section {
+            margin-bottom: 20px;
+        }
+        .report-section-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #666;
+        }
+        .report-content {
+            line-height: 1.6;
+            color: #666;
+            text-indent: 2em;
+        }
+        .report-highlight {
+            color: #1E9FFF;
+            font-weight: bold;
+        }
+        .report-data {
+            background-color: #f8f8f8;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .report-chart {
+            margin: 20px 0;
+        }
+        .trend-indicator {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-left: 5px;
+        }
+        .trend-fast {
+            background-color: #f56c6c;
+            color: white;
+        }
+        .trend-stable {
+            background-color: #67c23a;
+            color: white;
+        }
+        .trend-slow {
+            background-color: #e6a23c;
+            color: white;
+        }
+        .trend-need {
+            background-color: #909399;
+            color: white;
+        }
+        .probability-bar {
+            height: 10px;
+            background-color: #e0e0e0;
+            border-radius: 5px;
+            margin-top: 5px;
+            overflow: hidden;
+        }
+        .probability-fill {
+            height: 100%;
+            background-color: #409eff;
+            border-radius: 5px;
+        }
+    </style>
 </head>
 
 <body>
@@ -17,9 +96,42 @@
             <div class="layui-col-md12">
                 <div class="layui-card">
                     <div class="layui-card-body">
-                        <div class="layui-row">
-                            <div class="layui-col layui-col-md12">
-                                <div id="cluster-chart" style="height:600px;"></div>
+                        <div class="report-container">
+                            <div class="report-title">医疗资源预测分析报告</div>
+                            
+                            <div class="report-section" style="display: none;">
+                                <div class="report-section-title">1. 医院等级与重点科室分布分析</div>
+                                <div class="report-content" id="department-analysis">
+                                    <p>正在加载分析数据...</p>
+                                </div>
+                            </div>
+                            
+                            <div class="report-section">
+                                <div class="report-section-title">1. 地区医疗资源发展预测</div>
+                                <div class="report-content" id="region-development">
+                                    <p>正在加载预测数据...</p>
+                                </div>
+                            </div>
+                            
+                            <div class="report-section">
+                                <div class="report-section-title">2. 医院未来重点科室预测</div>
+                                <div class="report-content" id="future-departments">
+                                    <p>正在加载预测数据...</p>
+                                </div>
+                            </div>
+                            
+                            <div class="report-section">
+                                <div class="report-section-title">3. 医院等级与重点科室聚类分析</div>
+                                <div class="report-content" id="level-depart-cluster-analysis">
+                                    <p>正在加载分析数据...</p>
+                                </div>
+                            </div>
+                            
+                            <div class="report-section">
+                                <div class="report-section-title">4. 结论与建议</div>
+                                <div class="report-content" id="conclusion">
+                                    <p>正在生成结论与建议...</p>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -31,9 +143,6 @@
         window.onload = function() {
             console.log('页面加载完成');
 
-            // 初始化图表
-            var clusterChart = echarts.init(document.getElementById('cluster-chart'));
-
             // 从后端获取数据
             $.ajax({
                 url: '/system/hospitalCluster/data',
@@ -43,6 +152,8 @@
                     if(res.code === 0) {
                         // 准备数据
                         var data = res.data;
+                        var regionDevelopment = res.region_development;
+                        var futureDepartments = res.future_departments;
                         
                         // 按聚类分组数据
                         var clusterGroups = {};
@@ -57,13 +168,14 @@
                                 item.hospital_level,
                                 item.hospital_type,
                                 item.ownership,
-                                item.city
+                                item.city,
+                                item.province
                             ]);
                         });
 
                         // 准备系列数据
                         var series = [];
-                        var colors = ['#5470c6', '#91cc75', '#fac858', '#ee6666'];
+                        var colors = ['#5470c6', '#91cc75', '#fac858'];
                         var clusterLabels = Object.keys(clusterGroups);
                         
                         clusterLabels.forEach(function(label, index) {
@@ -86,65 +198,36 @@
                             });
                         });
 
-                        // 配置项
-                        var option = {
-                            title: {
-                                text: '医院聚类分析',
-                                left: 'center'
-                            },
-                            tooltip: {
-                                trigger: 'item',
-                                formatter: function(params) {
-                                    return '医院名称: ' + params.data[2] + '<br/>' +
-                                           '医院等级: ' + params.data[3] + '<br/>' +
-                                           '医院类型: ' + params.data[4] + '<br/>' +
-                                           '所有制: ' + params.data[5] + '<br/>' +
-                                           '所在城市: ' + params.data[6] + '<br/>' +
-                                           '科室数量: ' + params.data[0];
-                                }
-                            },
-                            legend: {
-                                data: clusterLabels,
-                                top: 30
-                            },
-                            grid: {
-                                left: '3%',
-                                right: '4%',
-                                bottom: '3%',
-                                containLabel: true
-                            },
-                            xAxis: {
-                                type: 'value',
-                                name: '科室数量',
-                                nameLocation: 'middle',
-                                nameGap: 30
-                            },
-                            yAxis: {
-                                type: 'value',
-                                name: '医院等级',
-                                nameLocation: 'middle',
-                                nameGap: 30,
-                                min: 0,
-                                max: 3,
-                                axisLabel: {
-                                    formatter: function(value) {
-                                        if (value === 3) return '三级甲等';
-                                        if (value === 2.5) return '三级乙等';
-                                        if (value === 2) return '三级丙等';
-                                        if (value === 1.5) return '二级甲等';
-                                        if (value === 1) return '二级乙等';
-                                        if (value === 0.5) return '二级丙等';
-                                        if (value === 0.2) return '一级';
-                                        return '';
-                                    }
-                                }
-                            },
-                            series: series
-                        };
 
                         try {
-                            clusterChart.setOption(option);
                             console.log('图表配置成功');
+                            
+                            // 生成地区医疗资源发展预测报告
+                            generateRegionDevelopmentReport(regionDevelopment);
+                            
+                            // 生成医院未来重点科室预测报告
+                            generateFutureDepartmentsReport(futureDepartments);
+                            
+                            // 获取医院等级与科室聚类分析数据
+                            $.ajax({
+                                url: '/system/hospitalCluster/levelDepartCluster',
+                                type: 'GET',
+                                dataType: 'json',
+                                success: function(clusterRes) {
+                                    if(clusterRes.code === 0) {
+                                        // 生成医院等级与科室聚类分析报告
+                                        generateLevelDepartClusterReport(clusterRes.data);
+                                    } else {
+                                        $('#level-depart-cluster-analysis').html('<p>获取医院等级与科室聚类分析数据失败: ' + clusterRes.msg + '</p>');
+                                    }
+                                },
+                                error: function(xhr, status, error) {
+                                    $('#level-depart-cluster-analysis').html('<p>获取医院等级与科室聚类分析数据失败: ' + error + '</p>');
+                                }
+                            });
+                            
+                            // 生成结论与建议
+                            generateConclusion(regionDevelopment, futureDepartments);
                         } catch (e) {
                             console.error('图表配置失败:', e);
                             alert('图表配置失败，请刷新页面重试');
@@ -159,10 +242,335 @@
                 }
             });
 
-            // 监听窗口大小变化
-            window.addEventListener('resize', function() {
-                clusterChart.resize();
-            });
+            
+            // 生成地区医疗资源发展预测报告
+            function generateRegionDevelopmentReport(regionDevelopment) {
+                if (!regionDevelopment || Object.keys(regionDevelopment).length === 0) {
+                    $('#region-development').html('<p>暂无数据</p>');
+                    return;
+                }
+                
+                // 按发展指数排序
+                const sortedProvinces = Object.keys(regionDevelopment).sort((a, b) => {
+                    return regionDevelopment[b].current_stats.development_index - 
+                           regionDevelopment[a].current_stats.development_index;
+                });
+                
+                // 生成报告
+                let report = `
+                    <p>根据各省份医疗资源现状，我们预测了未来5年的发展趋势：</p>
+                    <div class="report-data">
+                        <p>1. 各省份医疗资源发展预测：</p>
+                        <ul>
+                            ${sortedProvinces.map(province => {
+                                const data = regionDevelopment[province];
+                                const trendClass = data.trend === '快速发展' ? 'trend-fast' : 
+                                                  data.trend === '稳定发展' ? 'trend-stable' : 
+                                                  data.trend === '缓慢发展' ? 'trend-slow' : 'trend-need';
+                                
+                                return `
+                                    <li>
+                                        <span class="report-highlight">${province}</span>：
+                                        <span class="trend-indicator ${trendClass}">${data.trend}</span>
+                                        <ul>
+                                            <li>当前医院数量：<span class="report-highlight">${data.current_stats.hospital_count}</span>家</li>
+                                            <li>预测未来5年医院数量：<span class="report-highlight">${data.future_hospital_count}</span>家（增长率：<span class="report-highlight">${(data.growth_rate * 100).toFixed(1)}%</span>）</li>
+                                            <li>当前三级医院比例：<span class="report-highlight">${(data.current_stats.level3_ratio * 100).toFixed(1)}%</span></li>
+                                            <li>预测未来5年三级医院比例：<span class="report-highlight">${(data.future_level3_ratio * 100).toFixed(1)}%</span></li>
+                                            <li>当前平均科室数量：<span class="report-highlight">${data.current_stats.avg_dept_count.toFixed(1)}</span>个</li>
+                                            <li>预测未来5年平均科室数量：<span class="report-highlight">${data.future_avg_dept_count.toFixed(1)}</span>个</li>
+                                        </ul>
+                                    </li>
+                                `;
+                            }).join('')}
+                        </ul>
+                    </div>
+                    <p>从预测结果可以看出，<span class="report-highlight">${sortedProvinces[0]}</span>、<span class="report-highlight">${sortedProvinces[1]}</span>和<span class="report-highlight">${sortedProvinces[2]}</span>的医疗资源发展潜力较大，未来5年可能会有较快增长。而<span class="report-highlight">${sortedProvinces[sortedProvinces.length-1]}</span>、<span class="report-highlight">${sortedProvinces[sortedProvinces.length-2]}</span>和<span class="report-highlight">${sortedProvinces[sortedProvinces.length-3]}</span>的医疗资源发展相对滞后，需要加强投入。</p>
+                `;
+                
+                $('#region-development').html(report);
+            }
+            
+            // 生成医院未来重点科室预测报告
+            function generateFutureDepartmentsReport(futureDepartments) {
+                if (!futureDepartments || Object.keys(futureDepartments).length === 0) {
+                    $('#future-departments').html('<p>暂无数据</p>');
+                    return;
+                }
+                
+                // 生成报告
+                let report = `
+                    <p>根据当前医院科室分布情况，我们预测了各类医院未来可能出现的重点科室：</p>
+                `;
+                
+                // 综合医院未来重点科室
+                if (futureDepartments['综合医院']) {
+                    report += `
+                        <div class="report-data">
+                            <p>1. 综合医院未来重点科室预测：</p>
+                            <ul>
+                                ${futureDepartments['综合医院'].map(dept => {
+                                    return `
+                                        <li>
+                                            <span class="report-highlight">${dept.name}</span>
+                                            <div class="probability-bar">
+                                                <div class="probability-fill" style="width: ${dept.probability * 100}%"></div>
+                                            </div>
+                                            <div>出现概率：<span class="report-highlight">${(dept.probability * 100).toFixed(1)}%</span></div>
+                                            <div>预测理由：${dept.reason}</div>
+                                        </li>
+                                    `;
+                                }).join('')}
+                            </ul>
+                        </div>
+                    `;
+                }
+                
+                // 专科医院未来重点科室
+                if (futureDepartments['专科医院']) {
+                    report += `
+                        <div class="report-data">
+                            <p>2. 专科医院未来重点科室预测：</p>
+                            <ul>
+                                ${futureDepartments['专科医院'].map(dept => {
+                                    return `
+                                        <li>
+                                            <span class="report-highlight">${dept.name}</span>
+                                            <div class="probability-bar">
+                                                <div class="probability-fill" style="width: ${dept.probability * 100}%"></div>
+                                            </div>
+                                            <div>出现概率：<span class="report-highlight">${(dept.probability * 100).toFixed(1)}%</span></div>
+                                            <div>预测理由：${dept.reason}</div>
+                                        </li>
+                                    `;
+                                }).join('')}
+                            </ul>
+                        </div>
+                    `;
+                }
+                
+                // 整形美容院未来重点科室
+                if (futureDepartments['整形美容院']) {
+                    report += `
+                        <div class="report-data">
+                            <p>3. 整形美容院未来重点科室预测：</p>
+                            <ul>
+                                ${futureDepartments['整形美容院'].map(dept => {
+                                    return `
+                                        <li>
+                                            <span class="report-highlight">${dept.name}</span>
+                                            <div class="probability-bar">
+                                                <div class="probability-fill" style="width: ${dept.probability * 100}%"></div>
+                                            </div>
+                                            <div>出现概率：<span class="report-highlight">${(dept.probability * 100).toFixed(1)}%</span></div>
+                                            <div>预测理由：${dept.reason}</div>
+                                        </li>
+                                    `;
+                                }).join('')}
+                            </ul>
+                        </div>
+                    `;
+                }
+                
+                $('#future-departments').html(report);
+            }
+            
+            // 生成医院等级与重点科室聚类分析报告
+            function generateLevelDepartClusterReport(data) {
+                if (!data || !data.hospitals || data.hospitals.length === 0) {
+                    $('#level-depart-cluster-analysis').html('<p>暂无数据</p>');
+                    return;
+                }
+                
+                const hospitals = data.hospitals;
+                const clusterStats = data.cluster_stats;
+                
+                // 生成报告
+                let report = `
+                    <p>根据医院等级和重点科室数量的特征，我们对医院进行了聚类分析，结果如下：</p>
+                    <div class="report-data">
+                `;
+                
+                // 遍历每个聚类
+                for (const label in clusterStats) {
+                    const stats = clusterStats[label];
+                    
+                    // 计算医院类型分布
+                    const typeCounts = {};
+                    const clusterHospitals = hospitals.filter(h => h.cluster_label === label);
+                    
+                    // 确保所有医院类型都被显示
+                    const allTypes = ["综合医院", "专科医院", "整形美容院"];
+                    allTypes.forEach(type => {
+                        typeCounts[type] = 0;
+                    });
+                    
+                    // 统计实际医院类型
+                    clusterHospitals.forEach(h => {
+                        if (typeCounts[h.hospital_type] !== undefined) {
+                            typeCounts[h.hospital_type]++;
+                        }
+                    });
+                    
+                    // 找出最常见的医院等级作为平均等级
+                    const levelCounts = {};
+                    clusterHospitals.forEach(h => {
+                        if (levelCounts[h.hospital_level]) {
+                            levelCounts[h.hospital_level]++;
+                        } else {
+                            levelCounts[h.hospital_level] = 1;
+                        }
+                    });
+                    
+                    let mostCommonLevel = "";
+                    let maxCount = 0;
+                    for (const level in levelCounts) {
+                        if (levelCounts[level] > maxCount) {
+                            maxCount = levelCounts[level];
+                            mostCommonLevel = level;
+                        }
+                    }
+                    
+                    report += `
+                        <div class="report-section">
+                            <h3>${label}（共${stats.count}家）</h3>
+                            <ul>
+                                <li>平均重点科室数量：<span class="report-highlight">${stats.avg_dept_count.toFixed(1)}</span>个</li>
+                                <li>平均医院等级：<span class="report-highlight">${mostCommonLevel}</span></li>
+                                <li>医院类型分布：</li>
+                                <ul>
+                                    ${Object.entries(typeCounts).map(([type, count]) => 
+                                        `<li>${type}：${count}家（${(count/stats.count*100).toFixed(1)}%）</li>`
+                                    ).join('')}
+                                </ul>
+                                <li>医院等级分布：</li>
+                                <ul>
+                                    ${Object.entries(stats.level_distribution).map(([level, count]) => 
+                                        `<li>${level}：${count}家（${(count/stats.count*100).toFixed(1)}%）</li>`
+                                    ).join('')}
+                                </ul>
+                                <li>常见重点科室（前5名）：</li>
+                                <ul>
+                                    ${stats.common_depts.map(([dept, count]) => 
+                                        `<li>${dept}：${count}家（${(count/stats.count*100).toFixed(1)}%）</li>`
+                                    ).join('')}
+                                </ul>
+                            </ul>
+                        </div>
+                    `;
+                }
+                
+                report += `</div>`;
+                
+                
+                $('#level-depart-cluster-analysis').html(report);
+                
+                
+                labels.forEach((label, index) => {
+                    const clusterHospitals = hospitals.filter(h => h.cluster_label === label);
+                    
+                    series.push({
+                        name: label,
+                        type: 'scatter',
+                        data: clusterHospitals.map(h => [h.dept_count, h.level_value, h.hospital_name]),
+                        symbolSize: 10,
+                        itemStyle: {
+                            color: colors[index]
+                        },
+                        label: {
+                            show: false
+                        },
+                        emphasis: {
+                            label: {
+                                show: true
+                            }
+                        }
+                    });
+                });
+                
+                // 配置图表
+ 
+            }
+            
+            // 生成结论与建议
+            function generateConclusion(regionDevelopment, futureDepartments) {
+                if (!regionDevelopment || !futureDepartments) {
+                    $('#conclusion').html('<p>暂无数据</p>');
+                    return;
+                }
+                
+                // 找出发展最快的省份
+                const sortedProvinces = Object.keys(regionDevelopment).sort((a, b) => {
+                    return regionDevelopment[b].growth_rate - regionDevelopment[a].growth_rate;
+                });
+                
+                // 找出发展最慢的省份
+                const slowestProvinces = Object.keys(regionDevelopment).sort((a, b) => {
+                    return regionDevelopment[a].growth_rate - regionDevelopment[b].growth_rate;
+                });
+                
+                // 找出最可能出现的新兴科室
+                let emergingDepts = [];
+                if (futureDepartments['综合医院']) {
+                    emergingDepts = emergingDepts.concat(
+                        futureDepartments['综合医院'].filter(d => d.probability > 0.5)
+                    );
+                }
+                if (futureDepartments['专科医院']) {
+                    emergingDepts = emergingDepts.concat(
+                        futureDepartments['专科医院'].filter(d => d.probability > 0.5)
+                    );
+                }
+                if (futureDepartments['整形美容院']) {
+                    emergingDepts = emergingDepts.concat(
+                        futureDepartments['整形美容院'].filter(d => d.probability > 0.5)
+                    );
+                }
+                
+                // 按概率排序
+                emergingDepts.sort((a, b) => b.probability - a.probability);
+                
+                // 生成结论与建议
+                let report = `
+                    <p>基于以上预测分析，我们得出以下结论与建议：</p>
+                    <div class="report-data">
+                        <p>1. 地区医疗资源发展：</p>
+                        <ul>
+                            <li><span class="report-highlight">${sortedProvinces[0]}</span>、<span class="report-highlight">${sortedProvinces[1]}</span>和<span class="report-highlight">${sortedProvinces[2]}</span>的医疗资源发展潜力较大，未来5年可能会有较快增长，建议加大投入，提高医疗服务质量</li>
+                            <li><span class="report-highlight">${slowestProvinces[0]}</span>、<span class="report-highlight">${slowestProvinces[1]}</span>和<span class="report-highlight">${slowestProvinces[2]}</span>的医疗资源发展相对滞后，需要加强投入，提高医疗资源覆盖率</li>
+                            <li>各省份应加强医疗资源均衡发展，缩小地区差距，提高整体医疗水平</li>
+                        </ul>
+                    </div>
+                    <div class="report-data">
+                        <p>2. 医院重点科室发展：</p>
+                        <ul>
+                            <li>综合医院应加强<span class="report-highlight">${futureDepartments['综合医院'] ? futureDepartments['综合医院'][0].name : '基础科室'}</span>等科室建设，提高综合医疗服务能力</li>
+                            <li>专科医院应专注于<span class="report-highlight">${futureDepartments['专科医院'] ? futureDepartments['专科医院'][0].name : '特色科室'}</span>等科室发展，提高专科医疗服务水平</li>
+                            <li>整形美容院应加强<span class="report-highlight">${futureDepartments['整形美容院'] ? futureDepartments['整形美容院'][0].name : '美容科室'}</span>等科室建设，提高美容医疗服务质量</li>
+                        </ul>
+                    </div>
+                    <div class="report-data">
+                        <p>3. 新兴科室发展：</p>
+                        <ul>
+                            ${emergingDepts.slice(0, 5).map(dept => {
+                                return `<li>关注<span class="report-highlight">${dept.name}</span>等新兴科室的发展，提前布局，抢占市场先机</li>`;
+                            }).join('')}
+                        </ul>
+                    </div>
+                    <div class="report-data">
+                        <p>4. 建议：</p>
+                        <ul>
+                            <li>加强医疗资源均衡发展，缩小地区差距</li>
+                            <li>提高医院科室建设水平，增强医疗服务能力</li>
+                            <li>关注新兴科室发展，提前布局，抢占市场先机</li>
+                            <li>加强医院间协作，建立分级诊疗体系</li>
+                            <li>根据地区医疗需求，合理规划医院布局</li>
+                        </ul>
+                    </div>
+                `;
+                
+                $('#conclusion').html(report);
+            }
         };
     </script>
 </body>
