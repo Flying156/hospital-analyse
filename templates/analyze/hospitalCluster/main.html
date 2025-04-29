@@ -214,6 +214,7 @@
                                 type: 'GET',
                                 dataType: 'json',
                                 success: function(clusterRes) {
+                                    console.log(clusterRes);
                                     if(clusterRes.code === 0) {
                                         // 生成医院等级与科室聚类分析报告
                                         generateLevelDepartClusterReport(clusterRes.data);
@@ -267,18 +268,23 @@
                                 const trendClass = data.trend === '快速发展' ? 'trend-fast' : 
                                                   data.trend === '稳定发展' ? 'trend-stable' : 
                                                   data.trend === '缓慢发展' ? 'trend-slow' : 'trend-need';
-                                
+                                let trendText = data.trend;
+                                if (trendText === '缓慢发展') {
+                                    trendText = '发展有待提升';
+                                } else if (trendText === '需要加强') {
+                                    trendText = '资源亟待提升';
+                                }
                                 return `
                                     <li>
                                         <span class="report-highlight">${province}</span>：
-                                        <span class="trend-indicator ${trendClass}">${data.trend}</span>
+                                        <span class="trend-indicator ${trendClass}">${trendText}</span>
                                         <ul>
                                             <li>当前医院数量：<span class="report-highlight">${data.current_stats.hospital_count}</span>家</li>
                                             <li>预测未来5年医院数量：<span class="report-highlight">${data.future_hospital_count}</span>家（增长率：<span class="report-highlight">${(data.growth_rate * 100).toFixed(1)}%</span>）</li>
                                             <li>当前三级医院比例：<span class="report-highlight">${(data.current_stats.level3_ratio * 100).toFixed(1)}%</span></li>
                                             <li>预测未来5年三级医院比例：<span class="report-highlight">${(data.future_level3_ratio * 100).toFixed(1)}%</span></li>
-                                            <li>当前平均科室数量：<span class="report-highlight">${data.current_stats.avg_dept_count.toFixed(1)}</span>个</li>
-                                            <li>预测未来5年平均科室数量：<span class="report-highlight">${data.future_avg_dept_count.toFixed(1)}</span>个</li>
+                                            <li>当前平均重点科室数量：<span class="report-highlight">${data.current_stats.avg_dept_count.toFixed(1)}</span>个</li>
+                                            <li>预测未来5年平均重点科室数量：<span class="report-highlight">${data.future_avg_dept_count.toFixed(1)}</span>个</li>
                                         </ul>
                                     </li>
                                 `;
@@ -377,13 +383,15 @@
             
             // 生成医院等级与重点科室聚类分析报告
             function generateLevelDepartClusterReport(data) {
-                if (!data || !data.hospitals || data.hospitals.length === 0) {
+                // 这里的 data 是整个响应对象，需要取 data.data
+                const realData = data && data.data ? data.data : data;
+                if (!realData || !realData.hospitals || realData.hospitals.length === 0) {
                     $('#level-depart-cluster-analysis').html('<p>暂无数据</p>');
                     return;
                 }
                 
-                const hospitals = data.hospitals;
-                const clusterStats = data.cluster_stats;
+                const hospitals = realData.hospitals;
+                const clusterStats = realData.cluster_stats;
                 
                 // 生成报告
                 let report = `
@@ -464,32 +472,6 @@
                 
                 
                 $('#level-depart-cluster-analysis').html(report);
-                
-                
-                labels.forEach((label, index) => {
-                    const clusterHospitals = hospitals.filter(h => h.cluster_label === label);
-                    
-                    series.push({
-                        name: label,
-                        type: 'scatter',
-                        data: clusterHospitals.map(h => [h.dept_count, h.level_value, h.hospital_name]),
-                        symbolSize: 10,
-                        itemStyle: {
-                            color: colors[index]
-                        },
-                        label: {
-                            show: false
-                        },
-                        emphasis: {
-                            label: {
-                                show: true
-                            }
-                        }
-                    });
-                });
-                
-                // 配置图表
- 
             }
             
             // 生成结论与建议
@@ -550,15 +532,7 @@
                         </ul>
                     </div>
                     <div class="report-data">
-                        <p>3. 新兴科室发展：</p>
-                        <ul>
-                            ${emergingDepts.slice(0, 5).map(dept => {
-                                return `<li>关注<span class="report-highlight">${dept.name}</span>等新兴科室的发展，提前布局，抢占市场先机</li>`;
-                            }).join('')}
-                        </ul>
-                    </div>
-                    <div class="report-data">
-                        <p>4. 建议：</p>
+                        <p>3. 建议：</p>
                         <ul>
                             <li>加强医疗资源均衡发展，缩小地区差距</li>
                             <li>提高医院科室建设水平，增强医疗服务能力</li>

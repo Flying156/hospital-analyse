@@ -166,46 +166,65 @@ def get_hospital_cluster():
         })
 
 def predict_region_development(hospitals):
-    """预测地区医疗资源发展趋势"""
-    # 按省份分组
+    """预测地区医疗资源发展趋势（结合人口数据）"""
+    from applications.extensions.init_hive import HiveConnection
+
+    # 1. 读取人口数据
+    conn = HiveConnection.get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT city, population FROM population_data")
+    pop_results = cursor.fetchall()
+    # 构建人口字典
+    population_dict = {}
+    for row in pop_results:
+        province = row[0]
+        try:
+            population = float(row[1])
+        except Exception:
+            population = 0
+        population_dict[province] = population
+
+    # 2. 按省份分组
     province_groups = {}
     for hospital in hospitals:
-        province = hospital['province']
-        if province not in province_groups:
-            province_groups[province] = []
-        province_groups[province].append(hospital)
-    
-    # 计算各省份医疗资源指标
+        province = hospital.get('province', '').strip()
+        if not province:
+            continue
+        province_groups.setdefault(province, []).append(hospital)
+
+    # 3. 计算各省份医疗资源指标
     province_stats = {}
     for province, hospitals in province_groups.items():
-        # 计算医院数量
+        # 医院数量
         hospital_count = len(hospitals)
-        
-        # 计算三级医院比例
+        # 三级医院比例
         level3_count = sum(1 for h in hospitals if h['level_value'] >= 2)
         level3_ratio = level3_count / hospital_count if hospital_count > 0 else 0
-        
-        # 计算平均科室数量
+        # 平均科室数量
         avg_dept_count = np.mean([h['dept_count'] for h in hospitals])
-        
-        # 计算综合医院比例
+        # 综合医院比例
         general_count = sum(1 for h in hospitals if h['hospital_type'] == '综合医院')
         general_ratio = general_count / hospital_count if hospital_count > 0 else 0
-        
-        # 计算专科医院比例
+        # 专科医院比例
         specialty_count = sum(1 for h in hospitals if h['hospital_type'] == '专科医院')
         specialty_ratio = specialty_count / hospital_count if hospital_count > 0 else 0
-        
-        # 计算整形美容院比例
+        # 整形美容院比例
         cosmetic_count = sum(1 for h in hospitals if h['hospital_type'] == '整形美容院')
         cosmetic_ratio = cosmetic_count / hospital_count if hospital_count > 0 else 0
-        
-        # 计算发展潜力指数 (简单加权平均)
-        development_index = (level3_ratio * 0.4 + 
-                            avg_dept_count / 20 * 0.3 + 
-                            general_ratio * 0.2 + 
-                            specialty_ratio * 0.1)
-        
+        # 人口数
+        population = population_dict.get(province, 0)
+
+        # 发展潜力指数（引入人口因素，人口越多，医疗资源需求越大）
+        # 你可以根据实际情况调整权重
+        pop_score = min(population / 10000000, 1)  # 假设1千万人口为满分1分
+        development_index = (
+            level3_ratio * 0.3 +
+            avg_dept_count / 20 * 0.2 +
+            general_ratio * 0.15 +
+            specialty_ratio * 0.1 +
+            pop_score * 0.25
+        )
+
         province_stats[province] = {
             'hospital_count': hospital_count,
             'level3_ratio': level3_ratio,
@@ -213,13 +232,13 @@ def predict_region_development(hospitals):
             'general_ratio': general_ratio,
             'specialty_ratio': specialty_ratio,
             'cosmetic_ratio': cosmetic_ratio,
+            'population': population,
             'development_index': development_index
         }
-    
-    # 预测未来发展趋势
+
+    # 4. 预测未来发展趋势
     future_development = {}
     for province, stats in province_stats.items():
-        # 基于当前指标预测未来发展趋势
         if stats['development_index'] > 0.7:
             trend = "快速发展"
         elif stats['development_index'] > 0.5:
@@ -228,17 +247,12 @@ def predict_region_development(hospitals):
             trend = "缓慢发展"
         else:
             trend = "需要加强"
-        
-        # 预测未来5年医院数量增长
-        growth_rate = min(0.3, stats['development_index'] * 0.4)  # 最大增长30%
+
+        growth_rate = min(0.3, stats['development_index'] * 0.4)
         future_hospital_count = int(stats['hospital_count'] * (1 + growth_rate))
-        
-        # 预测未来5年三级医院比例变化
-        future_level3_ratio = min(0.8, stats['level3_ratio'] + 0.1)  # 最大比例80%
-        
-        # 预测未来5年平均科室数量变化
-        future_avg_dept_count = stats['avg_dept_count'] + 2  # 平均增加2个科室
-        
+        future_level3_ratio = min(0.8, stats['level3_ratio'] + 0.1)
+        future_avg_dept_count = stats['avg_dept_count'] + 2
+
         future_development[province] = {
             'current_stats': stats,
             'trend': trend,
@@ -247,7 +261,10 @@ def predict_region_development(hospitals):
             'future_avg_dept_count': future_avg_dept_count,
             'growth_rate': growth_rate
         }
-    
+
+    # 关闭连接
+    cursor.close()
+    conn.close()
     return future_development
 
 def predict_future_departments(hospitals):
@@ -299,14 +316,6 @@ def predict_future_departments(hospitals):
                 })
         
         # 添加一些新兴科室
-        emerging_depts = ['人工智能医疗中心', '精准医疗中心', '干细胞治疗中心', '基因治疗中心', '远程医疗中心']
-        for dept in emerging_depts:
-            if dept not in [d['name'] for d in future_general_depts]:
-                future_general_depts.append({
-                    'name': dept,
-                    'probability': 0.6,
-                    'reason': '随着医疗技术进步，该科室可能会成为综合医院的新兴重点科室'
-                })
         
         future_departments['综合医院'] = future_general_depts
     
@@ -332,15 +341,6 @@ def predict_future_departments(hospitals):
                     'reason': '该科室在专科医院中较为常见，未来可能会成为更多专科医院的重点科室'
                 })
         
-        # 添加一些新兴科室
-        emerging_depts = ['精准治疗中心', '微创治疗中心', '康复治疗中心', '疼痛治疗中心', '心理治疗中心']
-        for dept in emerging_depts:
-            if dept not in [d['name'] for d in future_specialty_depts]:
-                future_specialty_depts.append({
-                    'name': dept,
-                    'probability': 0.5,
-                    'reason': '随着专科医疗技术发展，该科室可能会成为专科医院的新兴重点科室'
-                })
         
         future_departments['专科医院'] = future_specialty_depts
     
@@ -366,15 +366,7 @@ def predict_future_departments(hospitals):
                     'reason': '该科室在整形美容院中较为常见，未来可能会成为更多整形美容院的重点科室'
                 })
         
-        # 添加一些新兴科室
-        emerging_depts = ['微整形中心', '皮肤管理中心', '抗衰老中心', '形体雕塑中心', '毛发移植中心']
-        for dept in emerging_depts:
-            if dept not in [d['name'] for d in future_cosmetic_depts]:
-                future_cosmetic_depts.append({
-                    'name': dept,
-                    'probability': 0.7,
-                    'reason': '随着美容技术发展，该科室可能会成为整形美容院的新兴重点科室'
-                })
+
         
         future_departments['整形美容院'] = future_cosmetic_depts
     
@@ -382,107 +374,7 @@ def predict_future_departments(hospitals):
 
 @bp.route('/levelDepartCluster')
 @login_required
-def get_hospital_level_depart_cluster():
-
-        redis_key = 'hospital_level_depart_data'
-        cached_data = redis.get(redis_key)
-
-        if cached_data:
-            # 如果缓存中有数据，直接返回缓存数据
-            return jsonify(json.loads(cached_data))
-        # 查询医院等级和重点科室数据
-        query = """
-        SELECT 
-            hospital_level,
-            departments
-        FROM hospitals
-        WHERE departments != 'NULL'
-        """
-
-        g.cursor.execute(query)
-        results = g.cursor.fetchall()
-        print(results)
-        # 处理数据
-        departments_count = {}
-        level_counts = {'三级甲等': 0, '三级乙等': 0, '三级丙等': 0,
-                       '二级甲等': 0, '二级乙等': 0, '二级丙等': 0,
-                       '一级甲等': 0, '一级乙等': 0, '一级丙等': 0
-                    }
-
-        for row in results:
-            level = row[0]
-            departments = row[1].split('、') if row[1] else []
-            
-            for dept in departments:
-                if dept not in departments_count:
-                    departments_count[dept] = {
-                        '三级甲等': 0, '三级乙等': 0, '三级丙等': 0,
-                        '二级甲等': 0, '二级乙等': 0, '二级丙等': 0,
-                        '一级甲等': 0, '一级乙等': 0, '一级丙等': 0
-                    }
-                
-                level_matched = False
-                for known_level in departments_count[dept].keys():
-                    if known_level in level:
-                        departments_count[dept][known_level] += 1
-                        level_matched = True
-                        break
-
-        print("医院等级统计:", level_counts)
-        print("科室数量:", len(departments_count))
-
-        # 转换为前端需要的格式
-        departments = list(departments_count.keys())
-        
-        # 计算每个科室的总医院数并排序
-        department_totals = []
-        for dept in departments:
-            total = sum(departments_count[dept].values())
-            department_totals.append((dept, total))
-        
-        # 按总医院数降序排序
-        department_totals.sort(key=lambda x: x[1], reverse=True)
-        
-        # 获取排序后的科室列表
-        sorted_departments = [item[0] for item in department_totals]
-        
-        # 根据排序后的科室顺序获取数据
-        level3a_data = [departments_count[dept]['三级甲等'] for dept in sorted_departments]
-        level3b_data = [departments_count[dept]['三级乙等'] for dept in sorted_departments]
-        level3c_data = [departments_count[dept]['三级丙等'] for dept in sorted_departments]
-        level2a_data = [departments_count[dept]['二级甲等'] for dept in sorted_departments]
-        level2b_data = [departments_count[dept]['二级乙等'] for dept in sorted_departments]
-        level2c_data = [departments_count[dept]['二级丙等'] for dept in sorted_departments]
-        level1a_data = [departments_count[dept]['一级甲等'] for dept in sorted_departments]
-        level1b_data = [departments_count[dept]['一级乙等'] for dept in sorted_departments]
-        level1c_data = [departments_count[dept]['一级丙等'] for dept in sorted_departments]
-
-        response_data = {
-            'code': 0,
-            'msg': 'success',
-            'data': {
-                'departments': sorted_departments,
-                'level3a_data': level3a_data,
-                'level3b_data': level3b_data,
-                'level3c_data': level3c_data,
-                'level2a_data': level2a_data,
-                'level2b_data': level2b_data,
-                'level2c_data': level2c_data,
-                'level1a_data': level1a_data,
-                'level1b_data': level1b_data,
-                'level1c_data': level1c_data
-            }
-        }
-
-        # 将查询结果缓存到 Redis，缓存时间为 60 秒
-        redis.set(redis_key, json.dumps(response_data))
-
-        return jsonify(response_data)
-
-
-@bp.route('/levelDepartCluster')
-@login_required
-def get_hospital_cluster12():
+def get_hospital_cluster123():
     try:
         redis_key = 'hospital_cluster_data'
         cached_data = redis.get(redis_key)
@@ -518,7 +410,12 @@ def get_hospital_cluster12():
             city = row[5]
             
             # 计算重点科室数量，处理NULL或空值的情况
-            dept_list = departments.split('、') if departments and departments != 'NULL' else []
+            if isinstance(departments, list):
+                dept_list = departments
+            elif departments and departments != 'NULL':
+                dept_list = departments.split('、')
+            else:
+                dept_list = []
             dept_count = len(dept_list)
             
             # 医院等级转换为数值
@@ -551,10 +448,10 @@ def get_hospital_cluster12():
                 'hospital_level': hospital_level,
                 'hospital_type': hospital_type,
                 'ownership': ownership,
-                'departments': dept_list,
+                'departments': dept_list,  # 始终为list
                 'dept_count': dept_count,
                 'city': city,
-                'level_value': level_value  # 添加数值化的等级
+                'level_value': level_value
             })
 
         # 标准化特征
@@ -562,34 +459,22 @@ def get_hospital_cluster12():
         features_scaled = scaler.fit_transform(features)
 
         # 执行聚类
-        kmeans = KMeans(n_clusters=3, random_state=42)  # 修改为3个聚类
+        kmeans = KMeans(n_clusters=3, random_state=42)
         clusters = kmeans.fit_predict(features_scaled)
 
         # 为每个聚类添加标签
         cluster_labels = []
-        for i in range(3):  # 修改为3个聚类
+        for i in range(3):
             cluster_hospitals = [h for j, h in enumerate(hospitals) if clusters[j] == i]
-            
-            # 统计医院类型
-            type_counts = {}
-            for hospital in cluster_hospitals:
-                hospital_type = hospital['hospital_type']
-                if hospital_type in type_counts:
-                    type_counts[hospital_type] += 1
-                else:
-                    type_counts[hospital_type] = 1
-            
-            # 找出最常见的医院类型
-            most_common_type = max(type_counts.items(), key=lambda x: x[1])[0] if type_counts else "未知"
-            
-            # 根据医院类型确定标签
-            if "综合" in most_common_type:
+            avg_dept = np.mean([h['dept_count'] for h in cluster_hospitals]) if cluster_hospitals else 0
+            avg_level = np.mean([h['level_value'] for h in cluster_hospitals]) if cluster_hospitals else 0
+
+            if avg_dept > 10 and avg_level > 2:
                 label = "综合医院"
-            elif "整形" in most_common_type:
-                label = "整形美容院"
-            else:
+            elif avg_dept > 5 and avg_level > 1:
                 label = "专科医院"
-            
+            else:
+                label = "整形美容院"
             cluster_labels.append(label)
 
         # 将聚类标签添加到医院数据中
@@ -597,24 +482,49 @@ def get_hospital_cluster12():
             hospital['cluster_label'] = cluster_labels[clusters[i]]
 
         # 确保所有医院类型都被包含在聚类结果中
-        # 如果某个医院类型没有被包含在聚类结果中，我们手动添加一个聚类
         all_types = ["综合医院", "专科医院", "整形美容院"]
         existing_labels = set(cluster_labels)
-        
-        # 如果某个医院类型没有被包含在聚类结果中，我们手动添加一个聚类
         for type_name in all_types:
             if type_name not in existing_labels:
-                # 找出属于该类型的医院
                 type_hospitals = [h for h in hospitals if type_name in h['hospital_type']]
                 if type_hospitals:
-                    # 将这些医院添加到聚类结果中
                     for hospital in type_hospitals:
                         hospital['cluster_label'] = type_name
+
+        # 统计每个聚类的统计信息
+        cluster_stats = {}
+        for label in all_types:
+            cluster_hospitals = [h for h in hospitals if h['cluster_label'] == label]
+            count = len(cluster_hospitals)
+            if count == 0:
+                continue
+            avg_dept_count = np.mean([h['dept_count'] for h in cluster_hospitals])
+            # 医院等级分布
+            level_distribution = {}
+            for h in cluster_hospitals:
+                level = h['hospital_level']
+                level_distribution[level] = level_distribution.get(level, 0) + 1
+            # 统计常见重点科室
+            dept_counter = {}
+            for h in cluster_hospitals:
+                for dept in h['departments']:
+                    dept_counter[dept] = dept_counter.get(dept, 0) + 1
+            # 取前5名
+            common_depts = sorted(dept_counter.items(), key=lambda x: x[1], reverse=True)[:5]
+            cluster_stats[label] = {
+                'count': count,
+                'avg_dept_count': float(avg_dept_count),
+                'level_distribution': level_distribution,
+                'common_depts': common_depts
+            }
 
         response_data = {
             'code': 0,
             'msg': 'success',
-            'data': hospitals
+            'data': {
+                'hospitals': hospitals,
+                'cluster_stats': cluster_stats
+            }
         }
 
         # 缓存数据到Redis，过期时间60秒
